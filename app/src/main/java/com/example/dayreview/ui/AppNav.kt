@@ -6,7 +6,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.feature.today.TodayScreen
 
-sealed class Route(val path: String) { object Today : Route("today") }
+sealed class Route(val path: String) { data object Today : Route("today") }
 
 @Composable
 fun AppNav() {
