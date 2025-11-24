@@ -1,16 +1,53 @@
 name: Build APK
 on: push
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    env:
+      # Speed up Gradle
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.configureondemand=true
+      # Quiet Android SDK licensing prompts
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 17 }
+        with:
+          distribution: temurin
+          java-version: 17
+
       - uses: android-actions/setup-android@v3
-      - uses: gradle/actions/setup-gradle@v3
+
+      # Cache Gradle dependencies
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle.properties', '**/settings.gradle*') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      # Cache Android build cache
+      - name: Cache Android build cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/build-cache
+          key: ${{ runner.os }}-android-buildcache-${{ hashFiles('**/*.gradle*', '**/settings.gradle*') }}
+          restore-keys: ${{ runner.os }}-android-buildcache-
+
       - name: Build Debug APK
-        run: gradle :app:assembleDebug
+        run: |
+          ./gradlew --version || true
+          gradle -v || true
+          gradle :app:assembleDebug --stacktrace
+
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
-        with: { name: app-debug.apk, path: app/build/outputs/apk/debug/app-debug.apk }
+        with:
+          name: app-debug.apk
+          path: app/build/outputs/apk/debug/app-debug.apk
