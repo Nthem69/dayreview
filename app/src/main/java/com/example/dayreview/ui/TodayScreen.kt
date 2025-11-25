@@ -41,21 +41,24 @@ data class Task(val id: Long, val title: String, val isDone: Boolean)
 
 @Composable
 fun TodayScreen() {
-    var isDayRated by remember { mutableStateOf(false) }
-    var showAddDialog by remember { mutableStateOf(false) }
+    // State: Which days have which colors?
+    // In a real app, this comes from the database.
+    var ratedDays by remember { mutableStateOf(mapOf<LocalDate, Color>()) }
     
-    // State: List of Tasks
-    var tasks by remember { mutableStateOf(listOf<Task>()) }
-
-    // Logic: Real Date
+    // Helper to check if today is rated
     val today = remember { LocalDate.now() }
+    val isTodayRated = ratedDays.containsKey(today)
+
+    var showAddDialog by remember { mutableStateOf(false) }
+    var tasks by remember { mutableStateOf(listOf<Task>()) }
+    
     val currentMonth = remember { today.month.getDisplayName(TextStyle.FULL, Locale.getDefault()) }
 
     Scaffold(
         containerColor = Color.White,
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showAddDialog = true }, // Opens Dialog
+                onClick = { showAddDialog = true },
                 containerColor = Color.Black,
                 contentColor = Color.White,
                 shape = CircleShape
@@ -70,19 +73,18 @@ fun TodayScreen() {
                 .padding(pad)
                 .padding(horizontal = 20.dp)
         ) {
-            // 1. Header & Calendar
             Spacer(modifier = Modifier.height(16.dp))
             TopHeader(monthName = currentMonth)
             Spacer(modifier = Modifier.height(20.dp))
             
-            // Pass today to the calendar to highlight the correct day
-            MonthCalendar(today = today)
+            // Pass the ratings map to the calendar
+            MonthCalendar(today = today, ratedDays = ratedDays)
             
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 2. Rating (Vanishing)
+            // Rating Area (Vanishes if today is in the map)
             AnimatedVisibility(
-                visible = !isDayRated,
+                visible = !isTodayRated,
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically()
             ) {
@@ -94,15 +96,14 @@ fun TodayScreen() {
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        MoodButton(MoodBlue) { isDayRated = true }
-                        MoodButton(MoodOrange) { isDayRated = true }
-                        MoodButton(MoodBlack) { isDayRated = true }
+                        MoodButton(MoodBlue) { ratedDays = ratedDays + (today to MoodBlue) }
+                        MoodButton(MoodOrange) { ratedDays = ratedDays + (today to MoodOrange) }
+                        MoodButton(MoodBlack) { ratedDays = ratedDays + (today to MoodBlack) }
                     }
                     Spacer(modifier = Modifier.height(24.dp))
                 }
             }
 
-            // 3. Task List
             Text(
                 text = "Today's Plan",
                 style = MaterialTheme.typography.titleMedium,
@@ -119,7 +120,7 @@ fun TodayScreen() {
                 LazyColumn(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(bottom = 80.dp) // FIX: Space for FAB
+                    contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
                     items(tasks.size) { i ->
                         val task = tasks[i]
@@ -135,7 +136,6 @@ fun TodayScreen() {
         }
     }
     
-    // The Add Task Dialog
     if (showAddDialog) {
         var text by remember { mutableStateOf("") }
         AlertDialog(
@@ -170,32 +170,7 @@ fun TodayScreen() {
 }
 
 @Composable
-fun TopHeader(monthName: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFF5F5F5)),
-            contentAlignment = Alignment.Center
-        ) { Text("=", fontWeight = FontWeight.Bold) }
-
-        Surface(shape = RoundedCornerShape(50), color = Color(0xFFF5F5F5), modifier = Modifier.height(40.dp)) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp), 
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(monthName, fontWeight = FontWeight.SemiBold)
-                Spacer(modifier = Modifier.width(4.dp))
-                Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(16.dp))
-            }
-        }
-    }
-}
-
-@Composable
-fun MonthCalendar(today: LocalDate) {
+fun MonthCalendar(today: LocalDate, ratedDays: Map<LocalDate, Color>) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -209,7 +184,6 @@ fun MonthCalendar(today: LocalDate) {
         }
         Spacer(modifier = Modifier.height(12.dp))
         
-        // Generate days for the current month
         val daysInMonth = today.lengthOfMonth()
         val days = (1..daysInMonth).toList()
         
@@ -221,21 +195,31 @@ fun MonthCalendar(today: LocalDate) {
         ) {
             items(days.size) { index ->
                 val dayNum = days[index]
-                val isToday = dayNum == today.dayOfMonth
+                // Construct the actual date for this cell
+                val cellDate = today.withDayOfMonth(dayNum)
                 
+                val isToday = cellDate == today
+                // Check if this specific date has a color in our map
+                val ratingColor = ratedDays[cellDate]
+                
+                // Determine background color: 
+                // 1. Rating Color (if exists)
+                // 2. Black (if today and not rated)
+                // 3. Transparent (default)
+                val bgColor = ratingColor ?: if (isToday) Color.Black else Color.Transparent
+                val textColor = if (ratingColor != null || isToday) Color.White else Color.Black
+
                 Box(
                     contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(32.dp).clip(CircleShape).background(
-                        when {
-                            isToday -> Color.Black
-                            else -> Color.Transparent
-                        }
-                    )
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(bgColor)
                 ) {
                     Text(
                         text = "$dayNum", 
                         fontSize = 12.sp, 
-                        color = if (isToday) Color.White else Color.Black
+                        color = textColor
                     )
                 }
             }
@@ -243,34 +227,42 @@ fun MonthCalendar(today: LocalDate) {
     }
 }
 
+// ... (Rest of components remain the same, simplified for brevity in this script)
+@Composable
+fun TopHeader(monthName: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFF5F5F5)),
+            contentAlignment = Alignment.Center
+        ) { Text("=", fontWeight = FontWeight.Bold) }
+
+        Surface(shape = RoundedCornerShape(50), color = Color(0xFFF5F5F5), modifier = Modifier.height(40.dp)) {
+            Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(monthName, fontWeight = FontWeight.SemiBold)
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(16.dp))
+            }
+        }
+    }
+}
 @Composable
 fun MoodButton(color: Color, onClick: () -> Unit) {
     Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(color).clickable { onClick() })
 }
-
 @Composable
 fun TaskItem(task: Task, onToggle: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFFF8F9FA))
-            .clickable { onToggle() }
-            .padding(16.dp)
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFF8F9FA)).clickable { onToggle() }.padding(16.dp)
     ) {
         Box(
-            modifier = Modifier
-                .size(24.dp)
-                .clip(CircleShape)
-                .background(if (task.isDone) Color.Black else Color.Transparent, CircleShape)
-                .border(2.dp, if(task.isDone) Color.Black else Color.Gray, CircleShape),
+            modifier = Modifier.size(24.dp).clip(CircleShape).background(if (task.isDone) Color.Black else Color.Transparent, CircleShape).border(2.dp, if(task.isDone) Color.Black else Color.Gray, CircleShape),
             contentAlignment = Alignment.Center
-        ) {
-            if (task.isDone) {
-                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-            }
-        }
+        ) { if (task.isDone) Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp)) }
         Spacer(modifier = Modifier.width(16.dp))
         Text(task.title, color = if (task.isDone) Color.Gray else Color.Black)
     }
