@@ -37,6 +37,11 @@ import java.time.Month
 import java.time.format.TextStyle
 import java.util.Locale
 
+// --- CRITICAL FIX: Import the colors we defined in Color.kt ---
+import com.example.dayreview.ui.theme.MoodBlue
+import com.example.dayreview.ui.theme.MoodOrange
+import com.example.dayreview.ui.theme.MoodBlack
+
 // --- DATA MODELS ---
 
 data class Task(val id: Long, val title: String, val isDone: Boolean)
@@ -62,18 +67,19 @@ val AvailableMoods = listOf(
 fun TodayScreen() {
     // --- STATE ---
     
-    // 1. Month Navigation State (Defaults to Today on launch)
+    // 1. Month Navigation State
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     val today = remember { LocalDate.now() }
     
-    // 2. Rating State (Map of Date -> MoodOption)
+    // 2. Rating State
     var ratedDays by remember { mutableStateOf(mapOf<LocalDate, MoodOption>()) }
+    // Check if the currently viewing day is rated
     val isSelectedDayRated = ratedDays.containsKey(selectedDate)
 
     // 3. Task State
     var tasks by remember { mutableStateOf(listOf<Task>()) }
     var showAddDialog by remember { mutableStateOf(false) }
-    var taskToEdit by remember { mutableStateOf<Task?>(null) } // For Long Press Editing
+    var taskToEdit by remember { mutableStateOf<Task?>(null) } 
 
     Scaffold(
         containerColor = Color.White,
@@ -98,7 +104,7 @@ fun TodayScreen() {
             TopHeader(
                 currentDate = selectedDate,
                 onMonthSelected = { newMonth -> 
-                    // Keep the same year, just change month, reset to day 1
+                    // Change month, keep year, reset to 1st of month
                     selectedDate = selectedDate.withMonth(newMonth.value).withDayOfMonth(1)
                 }
             )
@@ -116,7 +122,6 @@ fun TodayScreen() {
             Spacer(modifier = Modifier.height(24.dp))
 
             // --- RATING SECTION ---
-            // Only show if the SELECTED day is not rated yet
             AnimatedVisibility(
                 visible = !isSelectedDayRated,
                 enter = fadeIn() + expandVertically(),
@@ -130,7 +135,6 @@ fun TodayScreen() {
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     
-                    // Render Custom Shapes
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         AvailableMoods.forEach { mood ->
                             MoodButton(mood) { 
@@ -271,7 +275,6 @@ fun MonthCalendar(
             .background(Color(0xFFF8F9FA), RoundedCornerShape(24.dp))
             .padding(16.dp)
     ) {
-        // Week Header
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             listOf("S", "M", "T", "W", "T", "F", "S").forEach { day ->
                 Text(day, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.width(32.dp), textAlign = TextAlign.Center)
@@ -279,7 +282,6 @@ fun MonthCalendar(
         }
         Spacer(modifier = Modifier.height(12.dp))
         
-        // Days
         val daysInMonth = displayedDate.lengthOfMonth()
         val days = (1..daysInMonth).toList()
         
@@ -293,11 +295,6 @@ fun MonthCalendar(
                 val dayNum = days[index]
                 val cellDate = displayedDate.withDayOfMonth(dayNum)
                 
-                // Logic: 
-                // 1. Is this the EXACT day being viewed? (selected)
-                // 2. Is this TODAY? (bold)
-                // 3. Is it RATED? (shape/color)
-                
                 val isToday = cellDate == today
                 val isSelected = cellDate == displayedDate
                 val rating = ratedDays[cellDate]
@@ -306,11 +303,11 @@ fun MonthCalendar(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .size(32.dp)
-                        .clip(rating?.shape ?: CircleShape) // Use custom shape if rated, else circle for selection
+                        .clip(rating?.shape ?: CircleShape)
                         .background(
                             when {
                                 rating != null -> rating.color
-                                isSelected -> Color.Black // Selected gets black circle
+                                isSelected -> Color.Black 
                                 else -> Color.Transparent
                             }
                         )
@@ -319,7 +316,6 @@ fun MonthCalendar(
                     Text(
                         text = "$dayNum", 
                         fontSize = 12.sp, 
-                        // Logic: If Today -> Bold. If Rated or Selected -> White Text. Else -> Black.
                         fontWeight = if (isToday) FontWeight.ExtraBold else FontWeight.Normal,
                         color = if (rating != null || isSelected) Color.White else Color.Black
                     )
@@ -334,7 +330,7 @@ fun MoodButton(mood: MoodOption, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(48.dp)
-            .clip(mood.shape) // Apply the specific shape (Triangle/Square/Circle)
+            .clip(mood.shape)
             .background(mood.color)
             .clickable { onClick() }
     )
