@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,22 +28,21 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Define your custom colors from the image
+// Define colors
 val MoodBlue = Color(0xFF4FB3FF)
 val MoodOrange = Color(0xFFFF6F3B)
 val MoodBlack = Color(0xFF1A1A1A)
-val CalendarGray = Color(0xFFF0F0F0)
+
+// --- MOVED UP HERE (Fixes the build error) ---
+data class Task(val id: Int, val title: String, val isDone: Boolean)
 
 @Composable
 fun TodayScreen() {
-    // State simulating the database
     var isDayRated by remember { mutableStateOf(false) }
-    var selectedMood by remember { mutableStateOf<Color?>(null) }
     
-    // Task State
-    data class Task(val id: Int, val title: String, val isDone: Boolean)
+    // Simulating tasks
     var tasks by remember { mutableStateOf(
-        List(10) { Task(it, "Task Item #${it + 1}", false) } // Dummy data to show scrolling
+        List(10) { Task(it, "Task Item #${it + 1}", false) }
     ) }
 
     Scaffold(
@@ -63,7 +63,7 @@ fun TodayScreen() {
                 .padding(pad)
                 .padding(horizontal = 20.dp)
         ) {
-            // --- SECTION 1: TOP BAR & CALENDAR ---
+            // 1. Header & Calendar
             Spacer(modifier = Modifier.height(16.dp))
             TopHeader()
             Spacer(modifier = Modifier.height(20.dp))
@@ -71,8 +71,7 @@ fun TodayScreen() {
             
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- SECTION 2: RATING (VANISHING) ---
-            // This is the magic. It occupies space, but animates away when rated.
+            // 2. Rating (Vanishing)
             AnimatedVisibility(
                 visible = !isDayRated,
                 enter = fadeIn() + expandVertically(),
@@ -86,17 +85,15 @@ fun TodayScreen() {
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        MoodButton(MoodBlue) { isDayRated = true; selectedMood = MoodBlue }
-                        MoodButton(MoodOrange) { isDayRated = true; selectedMood = MoodOrange }
-                        MoodButton(MoodBlack) { isDayRated = true; selectedMood = MoodBlack }
+                        MoodButton(MoodBlue) { isDayRated = true }
+                        MoodButton(MoodOrange) { isDayRated = true }
+                        MoodButton(MoodBlack) { isDayRated = true }
                     }
                     Spacer(modifier = Modifier.height(24.dp))
                 }
             }
 
-            // --- SECTION 3: TO-DO LIST ---
-            // Weight(1f) ensures this fills whatever space is left.
-            // If Rating is visible, this is smaller. If Rating vanishes, this grows.
+            // 3. Task List
             Text(
                 text = "Today's Plan",
                 style = MaterialTheme.typography.titleMedium,
@@ -106,9 +103,7 @@ fun TodayScreen() {
             Spacer(modifier = Modifier.height(12.dp))
             
             LazyColumn(
-                modifier = Modifier
-                    .weight(1f) // Takes remaining space!
-                    .fillMaxWidth(),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(tasks.size) { i ->
@@ -125,8 +120,6 @@ fun TodayScreen() {
     }
 }
 
-// --- SUBCOMPONENTS ---
-
 @Composable
 fun TopHeader() {
     Row(
@@ -134,27 +127,13 @@ fun TopHeader() {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Menu Icon Placeholder
         Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(Color(0xFFF5F5F5)),
+            modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFF5F5F5)),
             contentAlignment = Alignment.Center
-        ) {
-            Text("=", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-        }
+        ) { Text("=", fontWeight = FontWeight.Bold) }
 
-        // Date Pill
-        Surface(
-            shape = RoundedCornerShape(50),
-            color = Color(0xFFF5F5F5),
-            modifier = Modifier.height(40.dp)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        Surface(shape = RoundedCornerShape(50), color = Color(0xFFF5F5F5), modifier = Modifier.height(40.dp)) {
+            Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("March", fontWeight = FontWeight.SemiBold)
             }
         }
@@ -169,54 +148,37 @@ fun MonthCalendar() {
             .background(Color(0xFFF8F9FA), RoundedCornerShape(24.dp))
             .padding(16.dp)
     ) {
-        // Days of week
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             listOf("S", "M", "T", "W", "T", "F", "S").forEach { day ->
-                Text(
-                    text = day, 
-                    fontSize = 12.sp, 
-                    fontWeight = FontWeight.Bold, 
-                    color = Color.Gray,
-                    modifier = Modifier.width(32.dp),
-                    textAlign = TextAlign.Center
-                )
+                Text(day, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.width(32.dp), textAlign = TextAlign.Center)
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
         
-        // Dummy Grid (4 weeks)
-        // In the real app, this will be calculated from LocalDate
         val days = (1..28).toList()
         LazyVerticalGrid(
             columns = GridCells.Fixed(7),
-            modifier = Modifier.height(180.dp), // Fixed height for calendar area
+            modifier = Modifier.height(180.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp) // Gap between columns
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(days.size) { index ->
                 val dayNum = days[index]
-                val isToday = dayNum == 10 // Fake today
+                val isToday = dayNum == 10
                 val isPast = dayNum < 10
                 
                 Box(
                     contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(
-                            when {
-                                isToday -> Color.Black
-                                isPast && dayNum % 2 == 0 -> MoodBlue // Fake history
-                                isPast -> MoodOrange // Fake history
-                                else -> Color.Transparent // Future
-                            }
-                        )
-                ) {
-                    Text(
-                        text = "$dayNum",
-                        fontSize = 12.sp,
-                        color = if (isToday || isPast) Color.White else Color.Black
+                    modifier = Modifier.size(32.dp).clip(CircleShape).background(
+                        when {
+                            isToday -> Color.Black
+                            isPast && dayNum % 2 == 0 -> MoodBlue
+                            isPast -> MoodOrange
+                            else -> Color.Transparent
+                        }
                     )
+                ) {
+                    Text("$dayNum", fontSize = 12.sp, color = if (isToday || isPast) Color.White else Color.Black)
                 }
             }
         }
@@ -225,13 +187,7 @@ fun MonthCalendar() {
 
 @Composable
 fun MoodButton(color: Color, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(48.dp)
-            .clip(CircleShape)
-            .background(color)
-            .clickable { onClick() }
-    )
+    Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(color).clickable { onClick() })
 }
 
 @Composable
@@ -250,8 +206,7 @@ fun TaskItem(task: Task, onToggle: () -> Unit) {
                 .size(24.dp)
                 .clip(CircleShape)
                 .background(if (task.isDone) Color.Black else Color.Transparent, CircleShape)
-                .then(if (!task.isDone) Modifier.padding(2.dp).background(Color.White, CircleShape) else Modifier)
-                .then(if (!task.isDone) Modifier.border(2.dp, Color.Gray, CircleShape) else Modifier),
+                .border(2.dp, Color.Gray, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             if (task.isDone) {
@@ -259,11 +214,6 @@ fun TaskItem(task: Task, onToggle: () -> Unit) {
             }
         }
         Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text = task.title,
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (task.isDone) Color.Gray else Color.Black,
-            // textDecoration = if (task.isDone) TextDecoration.LineThrough else null
-        )
+        Text(task.title, color = if (task.isDone) Color.Gray else Color.Black)
     }
 }
