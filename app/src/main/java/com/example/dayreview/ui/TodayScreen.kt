@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,31 +28,37 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
 
-// Define colors
+// Colors
 val MoodBlue = Color(0xFF4FB3FF)
 val MoodOrange = Color(0xFFFF6F3B)
 val MoodBlack = Color(0xFF1A1A1A)
 
-// --- MOVED UP HERE (Fixes the build error) ---
-data class Task(val id: Int, val title: String, val isDone: Boolean)
+data class Task(val id: Long, val title: String, val isDone: Boolean)
 
 @Composable
 fun TodayScreen() {
     var isDayRated by remember { mutableStateOf(false) }
+    var showAddDialog by remember { mutableStateOf(false) }
     
-    // Simulating tasks
-    var tasks by remember { mutableStateOf(
-        List(10) { Task(it, "Task Item #${it + 1}", false) }
-    ) }
+    // State: List of Tasks
+    var tasks by remember { mutableStateOf(listOf<Task>()) }
+
+    // Logic: Real Date
+    val today = remember { LocalDate.now() }
+    val currentMonth = remember { today.month.getDisplayName(TextStyle.FULL, Locale.getDefault()) }
 
     Scaffold(
         containerColor = Color.White,
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { /* Add Task Logic later */ },
+                onClick = { showAddDialog = true }, // Opens Dialog
                 containerColor = Color.Black,
-                contentColor = Color.White
+                contentColor = Color.White,
+                shape = CircleShape
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add")
             }
@@ -65,9 +72,11 @@ fun TodayScreen() {
         ) {
             // 1. Header & Calendar
             Spacer(modifier = Modifier.height(16.dp))
-            TopHeader()
+            TopHeader(monthName = currentMonth)
             Spacer(modifier = Modifier.height(20.dp))
-            MonthCalendar()
+            
+            // Pass today to the calendar to highlight the correct day
+            MonthCalendar(today = today)
             
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -102,26 +111,66 @@ fun TodayScreen() {
             )
             Spacer(modifier = Modifier.height(12.dp))
             
-            LazyColumn(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(tasks.size) { i ->
-                    val task = tasks[i]
-                    TaskItem(
-                        task = task, 
-                        onToggle = { 
-                            tasks = tasks.map { if (it.id == task.id) it.copy(isDone = !it.isDone) else it }
-                        }
-                    )
+            if (tasks.isEmpty()) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text("No tasks yet. Tap + to add.", color = Color.LightGray)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(bottom = 80.dp) // FIX: Space for FAB
+                ) {
+                    items(tasks.size) { i ->
+                        val task = tasks[i]
+                        TaskItem(
+                            task = task, 
+                            onToggle = { 
+                                tasks = tasks.map { if (it.id == task.id) it.copy(isDone = !it.isDone) else it }
+                            }
+                        )
+                    }
                 }
             }
         }
     }
+    
+    // The Add Task Dialog
+    if (showAddDialog) {
+        var text by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showAddDialog = false },
+            title = { Text("New Task") },
+            text = { 
+                OutlinedTextField(
+                    value = text, 
+                    onValueChange = { text = it },
+                    placeholder = { Text("What needs doing?") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                ) 
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (text.isNotBlank()) {
+                            tasks = tasks + Task(System.currentTimeMillis(), text, false)
+                            showAddDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
+                ) { Text("Add") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddDialog = false }) { Text("Cancel", color = Color.Gray) }
+            },
+            containerColor = Color.White
+        )
+    }
 }
 
 @Composable
-fun TopHeader() {
+fun TopHeader(monthName: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -133,15 +182,20 @@ fun TopHeader() {
         ) { Text("=", fontWeight = FontWeight.Bold) }
 
         Surface(shape = RoundedCornerShape(50), color = Color(0xFFF5F5F5), modifier = Modifier.height(40.dp)) {
-            Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("March", fontWeight = FontWeight.SemiBold)
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp), 
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(monthName, fontWeight = FontWeight.SemiBold)
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(16.dp))
             }
         }
     }
 }
 
 @Composable
-fun MonthCalendar() {
+fun MonthCalendar(today: LocalDate) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -155,30 +209,34 @@ fun MonthCalendar() {
         }
         Spacer(modifier = Modifier.height(12.dp))
         
-        val days = (1..28).toList()
+        // Generate days for the current month
+        val daysInMonth = today.lengthOfMonth()
+        val days = (1..daysInMonth).toList()
+        
         LazyVerticalGrid(
             columns = GridCells.Fixed(7),
-            modifier = Modifier.height(180.dp),
+            modifier = Modifier.height(200.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(days.size) { index ->
                 val dayNum = days[index]
-                val isToday = dayNum == 10
-                val isPast = dayNum < 10
+                val isToday = dayNum == today.dayOfMonth
                 
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.size(32.dp).clip(CircleShape).background(
                         when {
                             isToday -> Color.Black
-                            isPast && dayNum % 2 == 0 -> MoodBlue
-                            isPast -> MoodOrange
                             else -> Color.Transparent
                         }
                     )
                 ) {
-                    Text("$dayNum", fontSize = 12.sp, color = if (isToday || isPast) Color.White else Color.Black)
+                    Text(
+                        text = "$dayNum", 
+                        fontSize = 12.sp, 
+                        color = if (isToday) Color.White else Color.Black
+                    )
                 }
             }
         }
@@ -206,7 +264,7 @@ fun TaskItem(task: Task, onToggle: () -> Unit) {
                 .size(24.dp)
                 .clip(CircleShape)
                 .background(if (task.isDone) Color.Black else Color.Transparent, CircleShape)
-                .border(2.dp, Color.Gray, CircleShape),
+                .border(2.dp, if(task.isDone) Color.Black else Color.Gray, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             if (task.isDone) {
