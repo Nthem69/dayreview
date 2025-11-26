@@ -129,7 +129,7 @@ fun TodayScreen() {
                 onDateSelected = { selectedDate = it }
             )
             
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // --- RATING SECTION ---
             val isRated = ratedDays.containsKey(today)
@@ -279,12 +279,13 @@ fun MonthCalendar(
             .background(Color(0xFFF8F9FA), RoundedCornerShape(24.dp))
             .padding(16.dp)
     ) {
+        // Week Headers
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             listOf("S", "M", "T", "W", "T", "F", "S").forEach { day ->
-                Text(day, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.width(32.dp), textAlign = TextAlign.Center)
+                Text(day, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
             }
         }
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp)) // Reduced spacer
         
         // --- REAL CALENDAR LOGIC ---
         val daysInMonth = displayedDate.lengthOfMonth()
@@ -294,13 +295,16 @@ fun MonthCalendar(
         
         LazyVerticalGrid(
             columns = GridCells.Fixed(7),
-            modifier = Modifier.height(220.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // FIX: Height 280dp is enough for 6 rows if spacing is tight (4dp)
+            modifier = Modifier.height(280.dp), 
+            // FIX: Tighter spacing (4.dp) brings everything together
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            userScrollEnabled = false 
         ) {
             items(totalCells) { index ->
                 if (index < startOffset) {
-                    Box(modifier = Modifier.aspectRatio(1f)) // FIX: Maintain grid shape
+                    Box(modifier = Modifier.aspectRatio(1f))
                 } else {
                     val dayNum = index - startOffset + 1
                     val cellDate = displayedDate.withDayOfMonth(dayNum)
@@ -312,7 +316,7 @@ fun MonthCalendar(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .aspectRatio(1f) // FIX: Force perfect circle/square
+                            .aspectRatio(1f)
                             .clip(rating?.shape ?: CircleShape)
                             .background(
                                 when {
@@ -326,8 +330,8 @@ fun MonthCalendar(
                         Text(
                             text = "$dayNum", 
                             fontSize = 12.sp, 
-                            // FIX: Make dates bolder (Medium instead of Normal)
                             fontWeight = if (isToday) FontWeight.ExtraBold else FontWeight.Medium,
+                            textAlign = TextAlign.Center, 
                             color = if (rating != null || isSelected) Color.White else Color.Black
                         )
                     }
