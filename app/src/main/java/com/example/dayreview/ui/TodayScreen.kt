@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.Month
 import java.time.format.TextStyle
 import java.util.Locale
@@ -43,8 +44,8 @@ import com.example.dayreview.ui.theme.MoodBlack
 // --- DATA MODELS ---
 
 data class Task(val id: Long, val title: String, val isDone: Boolean, val date: LocalDate)
-// Updated Habit: Title contains emoji, history tracks the month's progress
-data class Habit(val id: Long, val title: String, val isDone: Boolean, val streak: Int, val history: List<Boolean>)
+// Added 'color' to Habit for customization
+data class Habit(val id: Long, val title: String, val isDone: Boolean, val streak: Int, val history: List<Boolean>, val color: Color)
 data class MoodOption(val id: String, val color: Color, val shape: Shape)
 
 // Custom Shapes
@@ -60,11 +61,16 @@ val AvailableMoods = listOf(
     MoodOption("bad", MoodBlack, TriangleShape)
 )
 
+// Habit Colors for Picker
+val HabitColors = listOf(MoodBlue, MoodOrange, Color(0xFF4CAF50), Color(0xFFE91E63), Color(0xFF9C27B0))
+
 enum class AppTab { Plan, Habits, Tracker }
 
 @Composable
 fun TodayScreen() {
     val today = remember { LocalDate.now() }
+    val currentTime = remember { LocalTime.now() }
+    
     var selectedDate by remember { mutableStateOf(today) }
     var currentTab by remember { mutableStateOf(AppTab.Plan) }
     var ratedDays by remember { mutableStateOf(mapOf<LocalDate, MoodOption>()) }
@@ -78,36 +84,43 @@ fun TodayScreen() {
     ) }
     
     // --- HABIT STATE ---
-    // Dummy generator: Creates a history list where previous days are randomly done, today is linked to isDone
     fun generateHistory(days: Int, isDoneToday: Boolean): List<Boolean> {
-        return List(days) { index -> 
-            if (index == today.dayOfMonth - 1) isDoneToday else (index % 3 != 0) // Random pattern
-        }
+        return List(days) { index -> if (index == today.dayOfMonth - 1) isDoneToday else (index % 3 != 0) }
     }
-    
     val daysInMonth = today.lengthOfMonth()
+    
     var habits by remember { mutableStateOf(
         listOf(
-            Habit(1, "💻 Build in Public", true, 24, generateHistory(daysInMonth, true)),
-            Habit(2, "📚 Read 10 pages", false, 5, generateHistory(daysInMonth, false)),
-            Habit(3, "💪 Workout", true, 3, generateHistory(daysInMonth, true))
+            Habit(1, "💻 Build in Public", true, 24, generateHistory(daysInMonth, true), MoodBlue),
+            Habit(2, "📚 Read 10 pages", false, 5, generateHistory(daysInMonth, false), MoodBlue),
+            Habit(3, "💪 Workout", true, 3, generateHistory(daysInMonth, true), MoodBlue)
         )
     ) }
 
     val isToday = selectedDate == today
     val isEditable = selectedDate >= today
     
+    // Dialog States
     var showAddTaskDialog by remember { mutableStateOf(false) }
+    var showAddHabitDialog by remember { mutableStateOf(false) }
     var taskToEdit by remember { mutableStateOf<Task?>(null) }
     var habitToEdit by remember { mutableStateOf<Habit?>(null) }
 
     Scaffold(
         containerColor = Color.White,
         floatingActionButton = {
-            if (currentTab == AppTab.Plan && isEditable) {
-                FloatingActionButton(onClick = { showAddTaskDialog = true }, containerColor = Color.Black, contentColor = Color.White, shape = CircleShape) { Icon(Icons.Default.Add, "Add") }
-            } else if (currentTab == AppTab.Habits) {
-                 FloatingActionButton(onClick = { /* Add Habit */ }, containerColor = Color.Black, contentColor = Color.White, shape = CircleShape) { Icon(Icons.Default.Add, "Add") }
+            // UNIVERSAL FAB LOGIC
+            val onClickAction: () -> Unit = when (currentTab) {
+                AppTab.Plan -> { { showAddTaskDialog = true } }
+                AppTab.Habits -> { { showAddHabitDialog = true } }
+                AppTab.Tracker -> { { /* Tracker Add */ } }
+            }
+            
+            // Show FAB if editable or on Habits/Tracker
+            if (isEditable || currentTab != AppTab.Plan) {
+                FloatingActionButton(onClick = onClickAction, containerColor = Color.Black, contentColor = Color.White, shape = CircleShape) { 
+                    Icon(Icons.Default.Add, "Add") 
+                }
             }
         }
     ) { pad ->
@@ -115,42 +128,40 @@ fun TodayScreen() {
             modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             TopHeader(selectedDate) { newMonth -> selectedDate = selectedDate.withMonth(newMonth.value).withDayOfMonth(1) }
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             
-            // 1. Calendar Fix: Use AspectRatio(1f) to ensure squareness that fits ALL rows
+            // 1. COMPACT CALENDAR (Removed AspectRatio, using tighter height)
             MonthCalendar(selectedDate, today, ratedDays) { selectedDate = it }
             Spacer(modifier = Modifier.height(12.dp))
 
+            // 2. TIME-GATED RATING (After 2 PM)
+            // Logic: Is today + Not Rated + Time >= 14:00 (2 PM)
             val isRated = ratedDays.containsKey(today)
-            AnimatedVisibility(visible = isToday && !isRated) {
+            val isTimeToShow = currentTime.hour >= 14 // 2 PM threshold
+            
+            AnimatedVisibility(visible = isToday && !isRated && isTimeToShow) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("How's your day!!", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         AvailableMoods.forEach { mood -> MoodButton(mood) { ratedDays = ratedDays + (today to mood) } }
                     }
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
 
             TabSegmentControl(currentTab) { currentTab = it }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Crossfade(targetState = currentTab, label = "Tab") { tab ->
                 when (tab) {
                     AppTab.Plan -> PlanContent(
                         tasks = allTasks.filter { it.date == selectedDate },
                         isEditable = isEditable,
-                        onCheck = { id -> 
-                            // Only allow checking if NOT done (Tap to Check)
-                            allTasks = allTasks.map { if (it.id == id && !it.isDone) it.copy(isDone = true) else it }
-                        },
-                        onUncheck = { id ->
-                            // Long press to Uncheck
-                            allTasks = allTasks.map { if (it.id == id && it.isDone) it.copy(isDone = false) else it }
-                        },
+                        onCheck = { id -> allTasks = allTasks.map { if (it.id == id && !it.isDone) it.copy(isDone = true) else it } },
+                        onUncheck = { id -> allTasks = allTasks.map { if (it.id == id && it.isDone) it.copy(isDone = false) else it } },
                         onEdit = { task -> if (isEditable) taskToEdit = task }
                     )
                     AppTab.Habits -> HabitsContent(
@@ -160,7 +171,6 @@ fun TodayScreen() {
                             habits = habits.map { h -> 
                                 if (h.id == id) {
                                     val newStatus = !h.isDone
-                                    // Update history for today (index = dayOfMonth - 1)
                                     val newHistory = h.history.toMutableList().apply { 
                                         if (today.dayOfMonth - 1 in indices) this[today.dayOfMonth - 1] = newStatus 
                                     }
@@ -178,46 +188,62 @@ fun TodayScreen() {
     
     // Dialogs
     if (showAddTaskDialog) { TaskDialog("New Task", "", { showAddTaskDialog = false }) { txt -> allTasks = allTasks + Task(System.currentTimeMillis(), txt, false, selectedDate); showAddTaskDialog = false } }
+    if (showAddHabitDialog) { TaskDialog("New Habit", "", { showAddHabitDialog = false }) { txt -> habits = habits + Habit(System.currentTimeMillis(), txt, false, 0, generateHistory(daysInMonth, false), MoodBlue); showAddHabitDialog = false } }
+    
     if (taskToEdit != null) { TaskDialog("Edit Task", taskToEdit!!.title, { taskToEdit = null }) { txt -> allTasks = allTasks.map { if (it.id == taskToEdit!!.id) it.copy(title = txt) else it }; taskToEdit = null } }
-    if (habitToEdit != null) { TaskDialog("Edit Habit", habitToEdit!!.title, { habitToEdit = null }) { txt -> habits = habits.map { if (it.id == habitToEdit!!.id) it.copy(title = txt) else it }; habitToEdit = null } }
+    
+    if (habitToEdit != null) { 
+        HabitEditDialog(
+            habit = habitToEdit!!,
+            onDismiss = { habitToEdit = null },
+            onConfirm = { title, color -> 
+                habits = habits.map { if (it.id == habitToEdit!!.id) it.copy(title = title, color = color) else it }
+                habitToEdit = null
+            }
+        )
+    }
 }
 
-// --- CALENDAR FIX ---
+// --- CALENDAR OPTIMIZATION ---
 @Composable
 fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<LocalDate, MoodOption>, onDateSelected: (LocalDate) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(1f) // FORCE SQUARE SHAPE
+            // REMOVED AspectRatio(1f). Using a compact fixed height based on visual needs.
+            // 260dp fits 6 rows tightly without wasting vertical space.
+            .height(260.dp) 
             .background(Color(0xFFF8F9FA), RoundedCornerShape(24.dp))
-            .padding(16.dp)
+            .padding(12.dp) // Reduced padding
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            listOf("S", "M", "T", "W", "T", "F", "S").forEach { day -> Text(day, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.weight(1f), textAlign = TextAlign.Center) }
+            listOf("S", "M", "T", "W", "T", "F", "S").forEach { day -> Text(day, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.weight(1f), textAlign = TextAlign.Center) }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         
         val daysInMonth = displayedDate.lengthOfMonth()
         val startOffset = displayedDate.withDayOfMonth(1).dayOfWeek.value % 7 
-        val totalCells = 42 // Fixed 6 rows
+        val totalCells = 42
         
         LazyVerticalGrid(
             columns = GridCells.Fixed(7),
-            modifier = Modifier.fillMaxSize(), // Fill the square container
-            verticalArrangement = Arrangement.SpaceEvenly, // Distribute evenly
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceEvenly,
             horizontalArrangement = Arrangement.SpaceEvenly,
             userScrollEnabled = false
         ) {
             items(totalCells) { index ->
                 val dayNum = index - startOffset + 1
                 if (index < startOffset || dayNum > daysInMonth) {
-                    Box(modifier = Modifier.aspectRatio(1f))
+                    Box(modifier = Modifier.size(30.dp)) // Ghost cell
                 } else {
                     val cellDate = displayedDate.withDayOfMonth(dayNum)
                     val rating = ratedDays[cellDate]; val isSelected = cellDate == displayedDate; val isToday = cellDate == today
                     Box(
                         contentAlignment = Alignment.Center,
-                        modifier = Modifier.aspectRatio(1f).clip(rating?.shape ?: CircleShape)
+                        modifier = Modifier
+                            .size(32.dp) // Fixed small size
+                            .clip(rating?.shape ?: CircleShape)
                             .background(when { rating != null -> rating.color; isSelected -> Color.Black; else -> Color.Transparent })
                             .clickable { onDateSelected(cellDate) }
                     ) {
@@ -229,96 +255,40 @@ fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<Loc
     }
 }
 
-// --- TASK CONTENT (Swipe to Edit, Tap/Hold Check) ---
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-@Composable
-fun PlanContent(tasks: List<Task>, isEditable: Boolean, onCheck: (Long) -> Unit, onUncheck: (Long) -> Unit, onEdit: (Task) -> Unit) {
-    if (tasks.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No tasks today.", color = Color.LightGray) } }
-    else {
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
-            items(tasks.size, key = { tasks[it].id }) { i ->
-                val task = tasks[i]
-                
-                // Swipe to Edit Box
-                val dismissState = rememberSwipeToDismissBoxState(
-                    confirmValueChange = {
-                        if (it == SwipeToDismissBoxValue.EndToStart) { onEdit(task); false } else false
-                    }
-                )
-                
-                SwipeToDismissBox(
-                    state = dismissState,
-                    backgroundContent = {
-                        Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color.LightGray).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterEnd) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.White)
-                        }
-                    },
-                    enableDismissFromStartToEnd = false
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFF8F9FA))
-                            .combinedClickable(
-                                onClick = { onCheck(task.id) },
-                                onLongClick = { onUncheck(task.id) }
-                            )
-                            .padding(16.dp)
-                    ) {
-                        Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(if (task.isDone) Color.Black else Color.Transparent, CircleShape).border(2.dp, if(task.isDone) Color.Black else Color.Gray, CircleShape), contentAlignment = Alignment.Center) {
-                            if (task.isDone) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text(task.title, color = if (task.isDone) Color.Gray else Color.Black, style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-            }
-        }
-    }
-}
-
-// --- HABITS CONTENT (Heatmap = Month Days) ---
+// --- HABIT UI RESTRUCTURE ---
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HabitsContent(habits: List<Habit>, daysInMonth: Int, onToggle: (Long) -> Unit, onEdit: (Habit) -> Unit) {
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
         items(habits.size) { i ->
             val habit = habits[i]
             Row(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
                     .border(1.dp, Color(0xFFF0F0F0), RoundedCornerShape(16.dp))
                     .combinedClickable(
-                        onClick = { onToggle(habit.id) },
-                        onLongClick = { onEdit(habit) }
+                        onClick = { /* Do nothing on card click, click check to toggle */ },
+                        onLongClick = { onEdit(habit) } // Long press card to edit
                     )
                     .padding(16.dp),
-                verticalAlignment = Alignment.Top // Align top for title vs check
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Main Content
+                // 1. Icon & Details (Left side)
                 Column(modifier = Modifier.weight(1f)) {
-                    // Title Row
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(habit.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                        Spacer(modifier = Modifier.weight(1f))
-                        Text("�� ${habit.streak}", fontSize = 12.sp, color = Color.Gray)
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(habit.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
                     
-                    // Heatmap Grid (Dynamic based on daysInMonth)
-                    // We render them in rows of ~15 to fit width
+                    // Heatmap
                     val rows = 3
-                    val cols = (daysInMonth + rows - 1) / rows 
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         repeat(rows) { r ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                repeat(10) { c -> // Fixed 10 cols for layout stability
+                            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                repeat(10) { c ->
                                     val dayIndex = r * 10 + c
                                     if (dayIndex < daysInMonth) {
                                         val isFilled = if (dayIndex < habit.history.size) habit.history[dayIndex] else false
                                         Box(
-                                            modifier = Modifier
-                                                .size(8.dp) // Small squares
-                                                .clip(RoundedCornerShape(2.dp))
-                                                .background(if (isFilled) MoodBlue else Color(0xFFF0F0F0))
+                                            modifier = Modifier.size(8.dp).clip(RoundedCornerShape(2.dp))
+                                                .background(if (isFilled) habit.color else Color(0xFFF0F0F0)) // Use habit custom color
                                         )
                                     }
                                 }
@@ -326,21 +296,59 @@ fun HabitsContent(habits: List<Habit>, daysInMonth: Int, onToggle: (Long) -> Uni
                         }
                     }
                 }
-                Spacer(modifier = Modifier.width(16.dp))
                 
-                // Check Button (Aligned Top-Right ish)
-                Box(
-                    modifier = Modifier.size(28.dp).clip(CircleShape).background(if (habit.isDone) MoodBlue else Color(0xFFF0F0F0)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (habit.isDone) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                // 2. Stats & Action (Right side)
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Streak (Top Right)
+                    Text("🔥 ${habit.streak}", fontSize = 12.sp, color = Color.Gray)
+                    
+                    // Check Button (Bottom Right)
+                    Box(
+                        modifier = Modifier.size(32.dp).clip(CircleShape)
+                            .background(if (habit.isDone) habit.color else Color(0xFFF0F0F0))
+                            .clickable { onToggle(habit.id) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (habit.isDone) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
                 }
             }
         }
     }
 }
 
-// ... (Rest of existing helpers: TabSegmentControl, TrackerContent, TopHeader, MoodButton, TaskDialog)
+@Composable
+fun HabitEditDialog(habit: Habit, onDismiss: () -> Unit, onConfirm: (String, Color) -> Unit) {
+    var text by remember { mutableStateOf(habit.title) }
+    var selectedColor by remember { mutableStateOf(habit.color) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Habit") },
+        text = { 
+            Column {
+                OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("Title") }, singleLine = true)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Heatmap Color", style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    HabitColors.forEach { color ->
+                        Box(
+                            modifier = Modifier.size(32.dp).clip(CircleShape).background(color)
+                                .border(2.dp, if (selectedColor == color) Color.Black else Color.Transparent, CircleShape)
+                                .clickable { selectedColor = color }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text, selectedColor) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } },
+        containerColor = Color.White
+    )
+}
+
+// ... (Rest of existing helpers: PlanContent, TabSegmentControl, TrackerContent, TopHeader, MoodButton, TaskDialog)
 @Composable
 fun TabSegmentControl(selected: AppTab, onSelect: (AppTab) -> Unit) {
     Row(modifier = Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF0F0F0)).padding(4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -379,4 +387,24 @@ fun MoodButton(mood: MoodOption, onClick: () -> Unit) { Box(modifier = Modifier.
 fun TaskDialog(title: String, initialText: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var text by remember { mutableStateOf(initialText) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text(title) }, text = { OutlinedTextField(value = text, onValueChange = { text = it }, placeholder = { Text("Description") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }, confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, containerColor = Color.White)
+}
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun PlanContent(tasks: List<Task>, isEditable: Boolean, onCheck: (Long) -> Unit, onUncheck: (Long) -> Unit, onEdit: (Task) -> Unit) {
+    if (tasks.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No tasks today.", color = Color.LightGray) } }
+    else {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
+            items(tasks.size, key = { tasks[it].id }) { i ->
+                val task = tasks[i]
+                val dismissState = rememberSwipeToDismissBoxState(confirmValueChange = { if (it == SwipeToDismissBoxValue.EndToStart) { onEdit(task); false } else false })
+                SwipeToDismissBox(state = dismissState, backgroundContent = { Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color.LightGray).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterEnd) { Icon(Icons.Default.Edit, "Edit", tint = Color.White) } }, enableDismissFromStartToEnd = false) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFF8F9FA)).combinedClickable(onClick = { onCheck(task.id) }, onLongClick = { onUncheck(task.id) }).padding(16.dp)) {
+                        Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(if (task.isDone) Color.Black else Color.Transparent, CircleShape).border(2.dp, if(task.isDone) Color.Black else Color.Gray, CircleShape), contentAlignment = Alignment.Center) { if (task.isDone) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(task.title, color = if (task.isDone) Color.Gray else Color.Black, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        }
+    }
 }
