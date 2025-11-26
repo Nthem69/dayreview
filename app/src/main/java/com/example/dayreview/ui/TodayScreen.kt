@@ -71,11 +71,10 @@ fun TodayScreen() {
     // Rating State
     var ratedDays by remember { mutableStateOf(mapOf<LocalDate, MoodOption>()) }
 
-    // Task State (Simulating a DB with a list)
-    // Seed some dummy data for previous days to test "Read Only" view
+    // Task State
     var allTasks by remember { mutableStateOf(
         listOf(
-            Task(1, "Water Plants", false, today.minusDays(2)), // Missed task on Friday?
+            Task(1, "Water Plants", false, today.minusDays(2)),
             Task(2, "Buy Groceries", true, today.minusDays(1)),
             Task(3, "Setup Project", false, today)
         )
@@ -85,7 +84,7 @@ fun TodayScreen() {
     val visibleTasks = allTasks.filter { it.date == selectedDate }
     val isToday = selectedDate == today
     val isFuture = selectedDate.isAfter(today)
-    val isEditable = isToday || isFuture // Can edit today and future, NOT past.
+    val isEditable = isToday || isFuture
 
     var showAddDialog by remember { mutableStateOf(false) }
     var taskToEdit by remember { mutableStateOf<Task?>(null) }
@@ -93,7 +92,6 @@ fun TodayScreen() {
     Scaffold(
         containerColor = Color.White,
         floatingActionButton = {
-            // FAB only visible if we can edit this day
             if (isEditable) {
                 FloatingActionButton(
                     onClick = { showAddDialog = true },
@@ -109,7 +107,7 @@ fun TodayScreen() {
                 .fillMaxSize()
                 .padding(pad)
                 .padding(horizontal = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally // Center everything by default
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(16.dp))
             
@@ -133,9 +131,8 @@ fun TodayScreen() {
             
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- RATING SECTION (Strictly Today Only) ---
+            // --- RATING SECTION ---
             val isRated = ratedDays.containsKey(today)
-            // Show only if viewing TODAY and NOT rated yet
             AnimatedVisibility(
                 visible = isToday && !isRated,
                 enter = fadeIn() + expandVertically(),
@@ -188,9 +185,8 @@ fun TodayScreen() {
                         val task = visibleTasks[i]
                         TaskItem(
                             task = task,
-                            enabled = isEditable, // Pass editable state down
+                            enabled = isEditable,
                             onToggle = { 
-                                // Only update if editable
                                 if (isEditable) {
                                     allTasks = allTasks.map { if (it.id == task.id) it.copy(isDone = !it.isDone) else it }
                                 }
@@ -293,22 +289,18 @@ fun MonthCalendar(
         // --- REAL CALENDAR LOGIC ---
         val daysInMonth = displayedDate.lengthOfMonth()
         val firstDayOfMonth = displayedDate.withDayOfMonth(1)
-        // Adjust offset: Java Time Sun=7, Mon=1. Grid is S(0), M(1)...
-        // If 1st is Sun(7), offset=0. If Mon(1), offset=1.
         val startOffset = firstDayOfMonth.dayOfWeek.value % 7 
-        
         val totalCells = daysInMonth + startOffset
         
         LazyVerticalGrid(
             columns = GridCells.Fixed(7),
-            modifier = Modifier.height(220.dp), // Slightly taller for 6 rows
+            modifier = Modifier.height(220.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(totalCells) { index ->
                 if (index < startOffset) {
-                    // Empty Cell (Previous Month)
-                    Box(modifier = Modifier.size(32.dp))
+                    Box(modifier = Modifier.aspectRatio(1f)) // FIX: Maintain grid shape
                 } else {
                     val dayNum = index - startOffset + 1
                     val cellDate = displayedDate.withDayOfMonth(dayNum)
@@ -320,7 +312,7 @@ fun MonthCalendar(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(32.dp)
+                            .aspectRatio(1f) // FIX: Force perfect circle/square
                             .clip(rating?.shape ?: CircleShape)
                             .background(
                                 when {
@@ -334,7 +326,8 @@ fun MonthCalendar(
                         Text(
                             text = "$dayNum", 
                             fontSize = 12.sp, 
-                            fontWeight = if (isToday) FontWeight.ExtraBold else FontWeight.Normal,
+                            // FIX: Make dates bolder (Medium instead of Normal)
+                            fontWeight = if (isToday) FontWeight.ExtraBold else FontWeight.Medium,
                             color = if (rating != null || isSelected) Color.White else Color.Black
                         )
                     }
@@ -361,7 +354,7 @@ fun TaskItem(task: Task, enabled: Boolean, onToggle: () -> Unit, onLongClick: ()
             .clip(RoundedCornerShape(16.dp))
             .background(Color(0xFFF8F9FA))
             .combinedClickable(
-                enabled = true, // We always allow click, but we gate logic inside
+                enabled = true,
                 onClick = { if (enabled) onToggle() },
                 onLongClick = { if (enabled) onLongClick() }
             )
