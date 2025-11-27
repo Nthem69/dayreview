@@ -9,6 +9,7 @@ import com.example.dayreview.data.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import kotlin.math.max
 
 class DayReviewViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
@@ -34,14 +35,12 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyMap())
 
     init {
-        // SEED DUMMY DATA if DB is empty
         viewModelScope.launch {
             if (habitDao.getAllHabits().first().isEmpty()) {
                 addHabit("💻 Build in Public")
                 addHabit("📚 Read 10 pages")
                 addHabit("💪 Workout")
                 addTask("Setup Project")
-                addTask("Water Plants")
             }
         }
     }
@@ -82,7 +81,9 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
                 newHistory[todayDayIndex] = newStatus
             }
             
-            val newStreak = if (newStatus) habit.streak + 1 else habit.streak
+            // FIX: Streak logic (Increment on Check, Decrement on Uncheck)
+            val newStreak = if (newStatus) habit.streak + 1 else max(0, habit.streak - 1)
+            
             habitDao.updateHabit(habit.copy(isDoneToday = newStatus, history = newHistory, streak = newStreak))
         }
     }

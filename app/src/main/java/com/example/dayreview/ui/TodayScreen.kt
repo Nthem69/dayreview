@@ -166,50 +166,7 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-@Composable
-fun PlanContent(tasks: List<TaskEntity>, ghostTasks: List<TaskEntity>, isEditable: Boolean, onCheck: (TaskEntity) -> Unit, onUncheck: (TaskEntity) -> Unit, onEdit: (TaskEntity) -> Unit) {
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
-        if (ghostTasks.isNotEmpty() && isEditable) {
-            item { Text("Unfinished Yesterday", style = MaterialTheme.typography.labelMedium, color = Color.Gray) }
-            items(ghostTasks.size) { i ->
-                val task = ghostTasks[i]
-                Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFF9F9F9)).padding(16.dp).alpha(0.6f), verticalAlignment = Alignment.CenterVertically) {
-                    Text(task.title, color = Color.Gray, modifier = Modifier.weight(1f))
-                    Icon(Icons.Default.Add, "Move", tint = Color.Black) 
-                }
-            }
-            item { Spacer(modifier = Modifier.height(8.dp)) }
-        }
-        if (tasks.isEmpty() && ghostTasks.isEmpty()) { 
-             item { Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) { Text("No tasks today.", color = Color.LightGray) } }
-        } else {
-            items(tasks.size, key = { tasks[it].id }) { i ->
-                val task = tasks[i]
-                val dismissState = rememberSwipeToDismissBoxState(confirmValueChange = { if (it == SwipeToDismissBoxValue.EndToStart) { onEdit(task); false } else false })
-                SwipeToDismissBox(state = dismissState, backgroundContent = { Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color.LightGray).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterEnd) { Icon(Icons.Default.Edit, "Edit", tint = Color.White) } }, enableDismissFromStartToEnd = false) {
-                    // FIX: Strict separation of Click (Check) and LongClick (Uncheck)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically, 
-                        modifier = Modifier.fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFFF8F9FA))
-                            .combinedClickable(
-                                onClick = { if (!task.isDone) onCheck(task) },
-                                onLongClick = { if (task.isDone) onUncheck(task) }
-                            )
-                            .padding(16.dp)
-                    ) {
-                        Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(if (task.isDone) Color.Black else Color.Transparent, CircleShape).border(2.dp, if(task.isDone) Color.Black else Color.Gray, CircleShape), contentAlignment = Alignment.Center) { if (task.isDone) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text(task.title, color = if (task.isDone) Color.Gray else Color.Black, style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-            }
-        }
-    }
-}
-
+// --- HABITS CONTENT (Fixed Heatmap Shape) ---
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HabitsContent(habits: List<HabitEntity>, onToggle: (HabitEntity) -> Unit, onEdit: (HabitEntity) -> Unit) {
@@ -223,20 +180,29 @@ fun HabitsContent(habits: List<HabitEntity>, onToggle: (HabitEntity) -> Unit, on
                     Text(habit.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color.Black)
                     Spacer(modifier = Modifier.height(8.dp))
                     
-                    // FIX: Full Month Heatmap (3 rows x 10 cols)
-                    // We map the history list to this grid. History size is usually 30/31.
+                    // WAVE HEATMAP (5 rows x 7 cols)
                     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        repeat(3) { r ->
+                        repeat(5) { r ->
                             Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                                repeat(10) { c ->
-                                    val dayIdx = r * 10 + c
-                                    // Check bounds against actual history size
-                                    if (dayIdx < habit.history.size) {
-                                        val isFilled = habit.history[dayIdx]
-                                        Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(if (isFilled) color else Color(0xFFF0F0F0)))
+                                repeat(7) { c ->
+                                    // Logic: Skip first 2 in Row 0, Skip last 2 in Row 4
+                                    val isVisible = !((r == 0 && c < 2) || (r == 4 && c > 4))
+                                    
+                                    if (isVisible) {
+                                        // Map (r,c) to a linear index for history
+                                        // Since we skip 2 at start, effective index = (r * 7 + c) - 2
+                                        val historyIndex = (r * 7 + c) - 2
+                                        
+                                        if (historyIndex >= 0 && historyIndex < habit.history.size) {
+                                            val isFilled = habit.history[historyIndex]
+                                            Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(if (isFilled) color else Color(0xFFF0F0F0)))
+                                        } else {
+                                            // Empty slot if out of bounds
+                                            Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(Color(0xFFF0F0F0)))
+                                        }
                                     } else {
-                                        // Placeholder for months with < 30 days or empty history
-                                        Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(Color.Transparent))
+                                        // Invisible spacer
+                                        Box(modifier = Modifier.size(8.dp).background(Color.Transparent))
                                     }
                                 }
                             }
@@ -254,6 +220,7 @@ fun HabitsContent(habits: List<HabitEntity>, onToggle: (HabitEntity) -> Unit, on
     }
 }
 
+// --- UPDATED DIALOGS (Fixed Button Text Color) ---
 @Composable
 fun TaskDialog(title: String, initialText: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var text by remember { mutableStateOf(initialText) }
@@ -270,7 +237,8 @@ fun TaskDialog(title: String, initialText: String, onDismiss: () -> Unit, onConf
                 colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.Black, unfocusedTextColor = Color.Black, cursorColor = Color.Black)
             ) 
         }, 
-        confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save") } }, 
+        // FIX: Explicit White Text on Black Button
+        confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save", color = Color.White) } }, 
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, 
         containerColor = Color.White
     )
@@ -296,13 +264,45 @@ fun HabitEditDialog(habit: HabitEntity, onDismiss: () -> Unit, onConfirm: (Strin
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { HabitColors.forEach { color -> Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(color).border(2.dp, if (selectedColor == color) Color.Black else Color.Transparent, CircleShape).clickable { selectedColor = color }) } } 
             } 
         }, 
-        confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text, selectedColor) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save") } }, 
+        confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text, selectedColor) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save", color = Color.White) } }, 
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, 
         containerColor = Color.White
     )
 }
 
-// ... Reused components (MonthCalendar, etc) ...
+// ... Rest of UI Components (Unchanged) ...
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun PlanContent(tasks: List<TaskEntity>, ghostTasks: List<TaskEntity>, isEditable: Boolean, onCheck: (TaskEntity) -> Unit, onUncheck: (TaskEntity) -> Unit, onEdit: (TaskEntity) -> Unit) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
+        if (ghostTasks.isNotEmpty() && isEditable) {
+            item { Text("Unfinished Yesterday", style = MaterialTheme.typography.labelMedium, color = Color.Gray) }
+            items(ghostTasks.size) { i ->
+                val task = ghostTasks[i]
+                Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFF9F9F9)).padding(16.dp).alpha(0.6f), verticalAlignment = Alignment.CenterVertically) {
+                    Text(task.title, color = Color.Gray, modifier = Modifier.weight(1f))
+                    Icon(Icons.Default.Add, "Move", tint = Color.Black) 
+                }
+            }
+            item { Spacer(modifier = Modifier.height(8.dp)) }
+        }
+        if (tasks.isEmpty() && ghostTasks.isEmpty()) { 
+             item { Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) { Text("No tasks today.", color = Color.LightGray) } }
+        } else {
+            items(tasks.size, key = { tasks[it].id }) { i ->
+                val task = tasks[i]
+                val dismissState = rememberSwipeToDismissBoxState(confirmValueChange = { if (it == SwipeToDismissBoxValue.EndToStart) { onEdit(task); false } else false })
+                SwipeToDismissBox(state = dismissState, backgroundContent = { Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color.LightGray).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterEnd) { Icon(Icons.Default.Edit, "Edit", tint = Color.White) } }, enableDismissFromStartToEnd = false) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFF8F9FA)).combinedClickable(onClick = { onCheck(task) }, onLongClick = { onUncheck(task) }).padding(16.dp)) {
+                        Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(if (task.isDone) Color.Black else Color.Transparent, CircleShape).border(2.dp, if(task.isDone) Color.Black else Color.Gray, CircleShape), contentAlignment = Alignment.Center) { if (task.isDone) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(task.title, color = if (task.isDone) Color.Gray else Color.Black, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        }
+    }
+}
 @Composable
 fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<LocalDate, MoodOption?>, onDateSelected: (LocalDate) -> Unit) { Column(modifier = Modifier.fillMaxWidth().height(260.dp).background(Color(0xFFF8F9FA), RoundedCornerShape(24.dp)).padding(12.dp)) { Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { listOf("S", "M", "T", "W", "T", "F", "S").forEach { day -> Text(day, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.weight(1f), textAlign = TextAlign.Center) } }; Spacer(modifier = Modifier.height(4.dp)); val daysInMonth = displayedDate.lengthOfMonth(); val startOffset = displayedDate.withDayOfMonth(1).dayOfWeek.value % 7; LazyVerticalGrid(columns = GridCells.Fixed(7), modifier = Modifier.fillMaxSize(), userScrollEnabled = false) { items(42) { index -> val dayNum = index - startOffset + 1; if (index < startOffset || dayNum > daysInMonth) { Box(modifier = Modifier.size(30.dp)) } else { val cellDate = displayedDate.withDayOfMonth(dayNum); val rating = ratedDays[cellDate]; val isSelected = cellDate == displayedDate; Box(contentAlignment = Alignment.Center, modifier = Modifier.size(32.dp).clip(rating?.shape ?: CircleShape).background(when { rating != null -> rating.color; isSelected -> Color.Black; else -> Color.Transparent }).clickable { onDateSelected(cellDate) }) { Text("$dayNum", fontSize = 12.sp, fontWeight = if (cellDate==today) FontWeight.ExtraBold else FontWeight.Medium, color = if (rating != null || isSelected) Color.White else Color.Black) } } } } } }
 @Composable
