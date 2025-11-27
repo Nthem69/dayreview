@@ -2,6 +2,8 @@ package com.example.dayreview
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.dayreview.data.*
 import kotlinx.coroutines.flow.*
@@ -67,9 +69,7 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
                 newHistory[todayDayIndex] = newStatus
             }
             
-            // Recalculate streak (simple logic)
             val newStreak = if (newStatus) habit.streak + 1 else habit.streak
-            
             habitDao.updateHabit(habit.copy(isDoneToday = newStatus, history = newHistory, streak = newStreak))
         }
     }
@@ -82,5 +82,16 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             ratingDao.setRating(RatingEntity(date = LocalDate.now().toString(), moodId = moodId))
         }
+    }
+}
+
+// THE MISSING FACTORY CLASS
+class DayReviewViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(DayReviewViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return DayReviewViewModel(application) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
