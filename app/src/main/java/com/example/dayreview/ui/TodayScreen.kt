@@ -12,13 +12,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.* // For Faces
+import androidx.compose.material.icons.rounded.FaceRetouchingNatural
+import androidx.compose.material.icons.rounded.SentimentDissatisfied
+import androidx.compose.material.icons.rounded.SentimentNeutral
+import androidx.compose.material.icons.rounded.SentimentSatisfied
+import androidx.compose.material.icons.rounded.SentimentVeryDissatisfied
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.toArgb // CRITICAL FIX: Explicit import
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -33,10 +40,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.dayreview.DayReviewViewModel
 import com.example.dayreview.data.TaskEntity
 import com.example.dayreview.data.HabitEntity
-import com.example.dayreview.ui.theme.*
+import com.example.dayreview.ui.theme.MoodBlue
+import com.example.dayreview.ui.theme.MoodOrange
+import com.example.dayreview.ui.theme.MoodBlack
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.Month
@@ -46,7 +56,7 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 
-// --- MOOD CONFIGURATION ---
+// --- DATA MODELS ---
 data class MoodItem(
     val id: String, 
     val defaultLabel: String, 
@@ -56,11 +66,11 @@ data class MoodItem(
 
 // The 5-Point Scale
 val AllMoods = listOf(
-    MoodItem("awful", "AWFUL", Color(0xFF9C27B0), Icons.Rounded.SentimentVeryDissatisfied), // Purple
-    MoodItem("bad", "BAD", Color(0xFFF44336), Icons.Rounded.SentimentDissatisfied),         // Red
-    MoodItem("okay", "OKAY", Color(0xFFFFC107), Icons.Rounded.SentimentNeutral),            // Yellow
-    MoodItem("good", "GOOD", Color(0xFF76FF03), Icons.Rounded.SentimentSatisfied),          // Lime Green
-    MoodItem("custom", "???", Color(0xFF9E9E9E), Icons.Rounded.FaceRetouchingNatural)       // Grey
+    MoodItem("awful", "AWFUL", Color(0xFF9C27B0), Icons.Rounded.SentimentVeryDissatisfied),
+    MoodItem("bad", "BAD", Color(0xFFF44336), Icons.Rounded.SentimentDissatisfied),
+    MoodItem("okay", "OKAY", Color(0xFFFFC107), Icons.Rounded.SentimentNeutral),
+    MoodItem("good", "GOOD", Color(0xFF76FF03), Icons.Rounded.SentimentSatisfied),
+    MoodItem("custom", "???", Color(0xFF9E9E9E), Icons.Rounded.FaceRetouchingNatural)
 )
 
 val HabitColors = listOf(MoodBlue, MoodOrange, Color(0xFF4CAF50), Color(0xFFE91E63), Color(0xFF9C27B0))
@@ -78,7 +88,7 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
     val currentTime = remember { LocalTime.now() }
     var currentTab by remember { mutableStateOf(AppTab.Plan) }
 
-    // Mood State (InMemory for now, ideally DB)
+    // Mood State
     var visibleMoodIds by remember { mutableStateOf(setOf("awful", "bad", "okay", "good", "custom")) }
     var customLabel by remember { mutableStateOf("???") }
     var showMoodConfig by remember { mutableStateOf(false) }
@@ -115,12 +125,12 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
             TopHeader(selectedDate) { newMonth -> viewModel.setDate(selectedDate.withMonth(newMonth.value).withDayOfMonth(1)) }
             Spacer(modifier = Modifier.height(12.dp))
             
-            // Calendar - Uses Colors Only
+            // Calendar
             val ratingVisuals = ratingsMap.mapValues { entry -> AllMoods.find { it.id == entry.value } }
             MonthCalendar(selectedDate, today, ratingVisuals) { viewModel.setDate(it) }
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Rating Section (Conditional)
+            // Rating Section
             val isRated = ratingsMap.containsKey(today)
             val isTimeToShow = currentTime.hour >= 14
             
@@ -129,8 +139,6 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                         Text("How's your day!!", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = Color.Black)
                         Spacer(modifier = Modifier.height(12.dp))
-                        
-                        // RENDER 5 ICONS
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             AllMoods.filter { it.id in visibleMoodIds }.forEach { mood ->
                                 val label = if (mood.id == "custom") customLabel else mood.defaultLabel
@@ -139,7 +147,6 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
                         }
                         Spacer(modifier = Modifier.height(16.dp))
                     }
-                    // The Pencil Icon (Top Right of Rating Area)
                     IconButton(
                         onClick = { showMoodConfig = true },
                         modifier = Modifier.align(Alignment.TopEnd).size(24.dp)
@@ -184,7 +191,6 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
                     Spacer(modifier = Modifier.height(8.dp))
                     AllMoods.forEach { mood ->
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable {
-                            // Toggle Logic
                             visibleMoodIds = if (visibleMoodIds.contains(mood.id)) visibleMoodIds - mood.id else visibleMoodIds + mood.id
                         }) {
                             Checkbox(checked = visibleMoodIds.contains(mood.id), onCheckedChange = null)
@@ -221,31 +227,14 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
 @Composable
 fun MoodFaceButton(mood: MoodItem, label: String, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        // Icon Circle
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(48.dp) // Large tap target
-                .clip(CircleShape)
-                .background(mood.color)
-                .clickable { onClick() }
+            modifier = Modifier.size(48.dp).clip(CircleShape).background(mood.color).clickable { onClick() }
         ) {
-            Icon(
-                imageVector = mood.icon,
-                contentDescription = label,
-                tint = Color.Black.copy(alpha = 0.8f), // Dark icons on colored bg
-                modifier = Modifier.size(32.dp)
-            )
+            Icon(imageVector = mood.icon, contentDescription = label, tint = Color.Black.copy(alpha = 0.8f), modifier = Modifier.size(32.dp))
         }
         Spacer(modifier = Modifier.height(4.dp))
-        // Tiny Label
-        Text(
-            text = label,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = mood.color, // Label matches face color
-            textAlign = TextAlign.Center
-        )
+        Text(text = label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = mood.color, textAlign = TextAlign.Center)
     }
 }
 
@@ -254,7 +243,6 @@ fun MoodFaceButton(mood: MoodItem, label: String, onClick: () -> Unit) {
 @Composable
 fun PlanContent(tasks: List<TaskEntity>, ghostTasks: List<TaskEntity>, isEditable: Boolean, onCheck: (TaskEntity) -> Unit, onUncheck: (TaskEntity) -> Unit, onEdit: (TaskEntity) -> Unit) {
     val haptic = LocalHapticFeedback.current
-    
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
         if (ghostTasks.isNotEmpty() && isEditable) {
             item { Text("Unfinished Yesterday", style = MaterialTheme.typography.labelMedium, color = Color.Gray) }
@@ -274,28 +262,7 @@ fun PlanContent(tasks: List<TaskEntity>, ghostTasks: List<TaskEntity>, isEditabl
                 val task = tasks[i]
                 val dismissState = rememberSwipeToDismissBoxState(confirmValueChange = { if (it == SwipeToDismissBoxValue.EndToStart) { onEdit(task); false } else false })
                 SwipeToDismissBox(state = dismissState, backgroundContent = { Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color.LightGray).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterEnd) { Icon(Icons.Default.Edit, "Edit", tint = Color.White) } }, enableDismissFromStartToEnd = false) {
-                    
-                    // ROW CONTAINER
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically, 
-                        modifier = Modifier.fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFFF8F9FA))
-                            // COMBINED CLICKABLE: Strictly separated logic
-                            .combinedClickable(
-                                onClick = { 
-                                    if (!task.isDone) onCheck(task) 
-                                    // If done, tap does nothing.
-                                },
-                                onLongClick = { 
-                                    if (task.isDone) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        onUncheck(task)
-                                    }
-                                }
-                            )
-                            .padding(16.dp)
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFF8F9FA)).combinedClickable(onClick = { if (!task.isDone) onCheck(task) }, onLongClick = { if (task.isDone) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onUncheck(task) } }).padding(16.dp)) {
                         Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(if (task.isDone) Color.Black else Color.Transparent, CircleShape).border(2.dp, if(task.isDone) Color.Black else Color.Gray, CircleShape), contentAlignment = Alignment.Center) { if (task.isDone) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
                         Spacer(modifier = Modifier.width(16.dp))
                         Text(task.title, color = if (task.isDone) Color.Gray else Color.Black, style = MaterialTheme.typography.bodyLarge)
@@ -306,7 +273,7 @@ fun PlanContent(tasks: List<TaskEntity>, ghostTasks: List<TaskEntity>, isEditabl
     }
 }
 
-// ... Rest of components (HabitContent, Calendar, etc) unchanged from previous working state ...
+// --- HABITS CONTENT (Wave Heatmap) ---
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HabitsContent(habits: List<HabitEntity>, onToggle: (HabitEntity) -> Unit, onEdit: (HabitEntity) -> Unit) {
@@ -346,6 +313,8 @@ fun HabitsContent(habits: List<HabitEntity>, onToggle: (HabitEntity) -> Unit, on
         }
     }
 }
+
+// ... Dialogs & Helpers (Same as before) ...
 @Composable
 fun TaskDialog(title: String, initialText: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) { var text by remember { mutableStateOf(initialText) }; AlertDialog(onDismissRequest = onDismiss, title = { Text(title, color = Color.Black) }, text = { OutlinedTextField(value = text, onValueChange = { text = it }, placeholder = { Text("Description", color = Color.Gray) }, singleLine = true, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.Black, unfocusedTextColor = Color.Black, cursorColor = Color.Black)) }, confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save", color = Color.White) } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, containerColor = Color.White) }
 @Composable
