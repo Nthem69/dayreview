@@ -8,7 +8,7 @@ data class TaskEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val title: String,
     val isDone: Boolean,
-    val date: String // "YYYY-MM-DD"
+    val date: String
 )
 
 @Entity(tableName = "habits")
@@ -24,5 +24,14 @@ data class HabitEntity(
 @Entity(tableName = "ratings")
 data class RatingEntity(
     @PrimaryKey val date: String, 
-    val moodId: String 
+    val moodId: Int // Changed to Int ID to match Config
+)
+
+@Entity(tableName = "mood_config")
+data class MoodConfigEntity(
+    @PrimaryKey val id: Int, // 1, 2, 3, 4, 5 (Fixed slots)
+    val label: String,
+    val colorArgb: Int,
+    val iconResId: Int, // R.drawable.ic_mood_1, etc.
+    val isVisible: Boolean
 )

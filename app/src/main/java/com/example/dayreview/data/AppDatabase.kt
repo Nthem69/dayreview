@@ -6,28 +6,21 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
-// Note: version bumped to 2 to force a refresh (destructive migration)
-@Database(entities = [TaskEntity::class, HabitEntity::class, RatingEntity::class], version = 2)
+@Database(entities = [TaskEntity::class, HabitEntity::class, RatingEntity::class, MoodConfigEntity::class], version = 3)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun habitDao(): HabitDao
     abstract fun ratingDao(): RatingDao
+    abstract fun moodConfigDao(): MoodConfigDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
-
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    "dayreview_db"
-                )
-                .fallbackToDestructiveMigration() // Wipe old bad data
-                .build()
-                INSTANCE = instance
-                instance
+                Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "dayreview_db")
+                    .fallbackToDestructiveMigration()
+                    .build().also { INSTANCE = it }
             }
         }
     }
