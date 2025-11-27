@@ -2,13 +2,8 @@ package com.example.dayreview
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.dayreview.data.*
-import com.example.dayreview.ui.theme.MoodBlue
-import com.example.dayreview.ui.theme.MoodOrange
-import com.example.dayreview.ui.theme.MoodBlack
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -19,35 +14,24 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     private val habitDao = db.habitDao()
     private val ratingDao = db.ratingDao()
 
-    // --- STATE FLOWS (The UI watches these) ---
-    
-    // We hold the selected date here so the UI follows it
     private val _selectedDate = MutableStateFlow(LocalDate.now())
     val selectedDate = _selectedDate.asStateFlow()
 
-    // 1. Tasks for the selected date
     val tasks = _selectedDate.flatMapLatest { date ->
         taskDao.getTasksForDate(date.toString())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyList())
 
-    // 2. Ghost Tasks (Unfinished from past)
     val ghostTasks = taskDao.getUnfinishedPastTasks(LocalDate.now().toString())
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyList())
 
-    // 3. Habits (Always all habits)
     val habits = habitDao.getAllHabits()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyList())
         
-    // 4. Ratings (All ratings map)
     val ratings = ratingDao.getAllRatings()
         .map { list -> list.associate { LocalDate.parse(it.date) to it.moodId } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyMap())
 
-    // --- ACTIONS ---
-
-    fun setDate(date: LocalDate) {
-        _selectedDate.value = date
-    }
+    fun setDate(date: LocalDate) { _selectedDate.value = date }
 
     fun addTask(title: String) {
         viewModelScope.launch {
@@ -56,34 +40,37 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun toggleTask(task: TaskEntity) {
-        viewModelScope.launch {
-            taskDao.updateTask(task.copy(isDone = !task.isDone))
-        }
+        viewModelScope.launch { taskDao.updateTask(task.copy(isDone = !task.isDone)) }
     }
     
     fun updateTaskTitle(task: TaskEntity, newTitle: String) {
-        viewModelScope.launch {
-             taskDao.updateTask(task.copy(title = newTitle))
-        }
+        viewModelScope.launch { taskDao.updateTask(task.copy(title = newTitle)) }
     }
 
     fun addHabit(title: String) {
         viewModelScope.launch {
-            // Default color BLUE for now
-            habitDao.insertHabit(HabitEntity(title = title, colorArgb = android.graphics.Color.parseColor("#4FB3FF")))
+            // Initialize with empty history of 30 days false
+            val initialHistory = List(30) { false }
+            habitDao.insertHabit(HabitEntity(title = title, colorArgb = android.graphics.Color.parseColor("#4FB3FF"), history = initialHistory))
         }
     }
     
     fun toggleHabit(habitId: Long) {
         viewModelScope.launch {
-            val todayStr = LocalDate.now().toString()
-            val existing = habitDao.getLog(habitId, todayStr)
-            if (existing != null) {
-                // If exists, toggle or delete? For simplicity, let's toggle boolean
-                habitDao.insertLog(existing.copy(isDone = !existing.isDone))
-            } else {
-                habitDao.insertLog(HabitLogEntity(habitId = habitId, date = todayStr, isDone = true))
+            // Find current habit, toggle isDoneToday, and update history index for today
+            val currentList = habits.value
+            val habit = currentList.find { it.id == habitId } ?: return@launch
+            
+            val newStatus = !habit.isDoneToday
+            val todayDayIndex = LocalDate.now().dayOfMonth - 1
+            
+            // Update history list safely
+            val newHistory = habit.history.toMutableList()
+            if (todayDayIndex >= 0 && todayDayIndex < newHistory.size) {
+                newHistory[todayDayIndex] = newStatus
             }
+            
+            habitDao.updateHabit(habit.copy(isDoneToday = newStatus, history = newHistory, streak = if(newStatus) habit.streak + 1 else habit.streak))
         }
     }
     
@@ -95,16 +82,5 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             ratingDao.setRating(RatingEntity(date = LocalDate.now().toString(), moodId = moodId))
         }
-    }
-}
-
-// Factory to create ViewModel with Application Context
-class DayReviewViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(DayReviewViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return DayReviewViewModel(application) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

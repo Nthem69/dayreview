@@ -17,16 +17,8 @@ data class HabitEntity(
     val title: String,
     val colorArgb: Int,
     val streak: Int = 0,
-    val isDoneToday: Boolean = false
-)
-
-// We keep logs for future detailed analytics
-@Entity(tableName = "habit_logs")
-data class HabitLogEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val habitId: Long,
-    val date: String, 
-    val isDone: Boolean
+    val isDoneToday: Boolean = false,
+    val history: List<Boolean> = emptyList() // The missing field!
 )
 
 @Entity(tableName = "ratings")
