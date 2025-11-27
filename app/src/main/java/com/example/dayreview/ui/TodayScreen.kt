@@ -119,11 +119,12 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
             Spacer(modifier = Modifier.height(12.dp))
 
             val isRated = ratingsMap.containsKey(today)
+            // Show Rating if: Today + Not Rated + After 2PM (14:00)
             val isTimeToShow = currentTime.hour >= 14
             
             AnimatedVisibility(visible = isToday && !isRated && isTimeToShow) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("How's your day!!", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text("How's your day!!", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = Color.Black)
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         AvailableMoods.forEach { mood -> MoodButton(mood) { viewModel.setRating(mood.id) } }
@@ -208,14 +209,15 @@ fun HabitsContent(habits: List<HabitEntity>, onToggle: (HabitEntity) -> Unit, on
         items(habits.size) { i ->
             val habit = habits[i]
             val color = Color(habit.colorArgb)
-            Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, Color(0xFFF0F0F0), RoundedCornerShape(16.dp)).combinedClickable(onClick = { /* No action on card yet */ }, onLongClick = { onEdit(habit) }).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, Color(0xFFF0F0F0), RoundedCornerShape(16.dp)).combinedClickable(onClick = { /* No action */ }, onLongClick = { onEdit(habit) }).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(habit.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                    Text(habit.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color.Black)
                     Spacer(modifier = Modifier.height(8.dp))
-                    // Heatmap (Dummy visual based on ID for now, just to show UI)
+                    // Heatmap Visual
                     Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                        repeat(15) { 
-                            Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(if ((it + habit.id.toInt()) % 3 != 0) color else Color(0xFFF0F0F0))) 
+                        repeat(15) { idx -> 
+                            val isFilled = if (idx < habit.history.size) habit.history[idx] else false
+                            Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(if (isFilled) color else Color(0xFFF0F0F0))) 
                         }
                     }
                 }
@@ -230,9 +232,66 @@ fun HabitsContent(habits: List<HabitEntity>, onToggle: (HabitEntity) -> Unit, on
     }
 }
 
-// ... Reused Helpers ...
+// --- UPDATED DIALOGS (Explicit Black Text) ---
 @Composable
-fun HabitEditDialog(habit: HabitEntity, onDismiss: () -> Unit, onConfirm: (String, Color) -> Unit) { var text by remember { mutableStateOf(habit.title) }; var selectedColor by remember { mutableStateOf(Color(habit.colorArgb)) }; AlertDialog(onDismissRequest = onDismiss, title = { Text("Edit Habit") }, text = { Column { OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("Title") }, singleLine = true); Spacer(modifier = Modifier.height(16.dp)); Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { HabitColors.forEach { color -> Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(color).border(2.dp, if (selectedColor == color) Color.Black else Color.Transparent, CircleShape).clickable { selectedColor = color }) } } } }, confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text, selectedColor) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, containerColor = Color.White) }
+fun TaskDialog(title: String, initialText: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var text by remember { mutableStateOf(initialText) }
+    AlertDialog(
+        onDismissRequest = onDismiss, 
+        title = { Text(title, color = Color.Black) }, 
+        text = { 
+            OutlinedTextField(
+                value = text, 
+                onValueChange = { text = it }, 
+                placeholder = { Text("Description", color = Color.Gray) }, 
+                singleLine = true, 
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.Black,
+                    unfocusedTextColor = Color.Black,
+                    cursorColor = Color.Black,
+                    focusedBorderColor = Color.Black,
+                    unfocusedBorderColor = Color.LightGray
+                )
+            ) 
+        }, 
+        confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save") } }, 
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, 
+        containerColor = Color.White
+    )
+}
+
+@Composable
+fun HabitEditDialog(habit: HabitEntity, onDismiss: () -> Unit, onConfirm: (String, Color) -> Unit) {
+    var text by remember { mutableStateOf(habit.title) }
+    var selectedColor by remember { mutableStateOf(Color(habit.colorArgb)) }
+    AlertDialog(
+        onDismissRequest = onDismiss, 
+        title = { Text("Edit Habit", color = Color.Black) }, 
+        text = { 
+            Column { 
+                OutlinedTextField(
+                    value = text, 
+                    onValueChange = { text = it }, 
+                    label = { Text("Title", color = Color.Gray) }, 
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        cursorColor = Color.Black
+                    )
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { HabitColors.forEach { color -> Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(color).border(2.dp, if (selectedColor == color) Color.Black else Color.Transparent, CircleShape).clickable { selectedColor = color }) } } 
+            } 
+        }, 
+        confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text, selectedColor) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save") } }, 
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, 
+        containerColor = Color.White
+    )
+}
+
+// ... Reused components (MonthCalendar, etc) ...
 @Composable
 fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<LocalDate, MoodOption?>, onDateSelected: (LocalDate) -> Unit) { Column(modifier = Modifier.fillMaxWidth().height(260.dp).background(Color(0xFFF8F9FA), RoundedCornerShape(24.dp)).padding(12.dp)) { Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { listOf("S", "M", "T", "W", "T", "F", "S").forEach { day -> Text(day, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.weight(1f), textAlign = TextAlign.Center) } }; Spacer(modifier = Modifier.height(4.dp)); val daysInMonth = displayedDate.lengthOfMonth(); val startOffset = displayedDate.withDayOfMonth(1).dayOfWeek.value % 7; LazyVerticalGrid(columns = GridCells.Fixed(7), modifier = Modifier.fillMaxSize(), userScrollEnabled = false) { items(42) { index -> val dayNum = index - startOffset + 1; if (index < startOffset || dayNum > daysInMonth) { Box(modifier = Modifier.size(30.dp)) } else { val cellDate = displayedDate.withDayOfMonth(dayNum); val rating = ratedDays[cellDate]; val isSelected = cellDate == displayedDate; Box(contentAlignment = Alignment.Center, modifier = Modifier.size(32.dp).clip(rating?.shape ?: CircleShape).background(when { rating != null -> rating.color; isSelected -> Color.Black; else -> Color.Transparent }).clickable { onDateSelected(cellDate) }) { Text("$dayNum", fontSize = 12.sp, fontWeight = if (cellDate==today) FontWeight.ExtraBold else FontWeight.Medium, color = if (rating != null || isSelected) Color.White else Color.Black) } } } } } }
 @Composable
@@ -240,8 +299,26 @@ fun TabSegmentControl(selected: AppTab, onSelect: (AppTab) -> Unit) { Row(modifi
 @Composable
 fun TrackerContent() { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Tracker coming soon...", color = Color.Gray) } }
 @Composable
-fun TopHeader(currentDate: LocalDate, onMonthSelected: (Month) -> Unit) { var menuExpanded by remember { mutableStateOf(false) }; Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFF5F5F5)), contentAlignment = Alignment.Center) { Text("=", fontWeight = FontWeight.Bold) }; Box { Surface(shape = RoundedCornerShape(50), color = Color(0xFFF5F5F5), modifier = Modifier.height(40.dp).clickable { menuExpanded = true }) { Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) { Text(currentDate.month.getDisplayName(TextStyle.FULL, Locale.getDefault()), fontWeight = FontWeight.SemiBold); Spacer(modifier = Modifier.width(4.dp)); Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(16.dp)) } }; DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }, modifier = Modifier.background(Color.White)) { Month.values().forEach { month -> DropdownMenuItem(text = { Text(month.getDisplayName(TextStyle.FULL, Locale.getDefault())) }, onClick = { onMonthSelected(month); menuExpanded = false }) } } } } }
+fun TopHeader(currentDate: LocalDate, onMonthSelected: (Month) -> Unit) { 
+    var menuExpanded by remember { mutableStateOf(false) }
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { 
+        Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFF5F5F5)), contentAlignment = Alignment.Center) { Text("=", fontWeight = FontWeight.Bold, color = Color.Black) }
+        Box { 
+            Surface(shape = RoundedCornerShape(50), color = Color(0xFFF5F5F5), modifier = Modifier.height(40.dp).clickable { menuExpanded = true }) { 
+                Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) { 
+                    Text(currentDate.month.getDisplayName(TextStyle.FULL, Locale.getDefault()), fontWeight = FontWeight.SemiBold, color = Color.Black)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.Black) 
+                } 
+            }
+            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }, modifier = Modifier.background(Color.White)) { 
+                Month.values().forEach { month -> 
+                    DropdownMenuItem(text = { Text(month.getDisplayName(TextStyle.FULL, Locale.getDefault()), color = Color.Black) }, onClick = { onMonthSelected(month); menuExpanded = false }) 
+                } 
+            } 
+        } 
+    } 
+}
 @Composable
 fun MoodButton(mood: MoodOption, onClick: () -> Unit) { Box(modifier = Modifier.size(48.dp).clip(mood.shape).background(mood.color).clickable { onClick() }) }
-@Composable
-fun TaskDialog(title: String, initialText: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) { var text by remember { mutableStateOf(initialText) }; AlertDialog(onDismissRequest = onDismiss, title = { Text(title) }, text = { OutlinedTextField(value = text, onValueChange = { text = it }, placeholder = { Text("Description") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }, confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, containerColor = Color.White) }
+fun Modifier.alpha(value: Float) = this.then(Modifier.background(Color.Transparent.copy(alpha = 1f - value)))

@@ -33,6 +33,19 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         .map { list -> list.associate { LocalDate.parse(it.date) to it.moodId } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyMap())
 
+    init {
+        // SEED DUMMY DATA if DB is empty
+        viewModelScope.launch {
+            if (habitDao.getAllHabits().first().isEmpty()) {
+                addHabit("💻 Build in Public")
+                addHabit("📚 Read 10 pages")
+                addHabit("💪 Workout")
+                addTask("Setup Project")
+                addTask("Water Plants")
+            }
+        }
+    }
+
     fun setDate(date: LocalDate) { _selectedDate.value = date }
 
     fun addTask(title: String) {
@@ -85,7 +98,6 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     }
 }
 
-// THE MISSING FACTORY CLASS
 class DayReviewViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(DayReviewViewModel::class.java)) {
