@@ -23,6 +23,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -41,6 +42,11 @@ import java.time.Month
 import java.time.format.TextStyle
 import java.util.Locale
 
+// Imports required for Swipe actions
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+
 import com.example.dayreview.ui.theme.MoodBlue
 import com.example.dayreview.ui.theme.MoodOrange
 import com.example.dayreview.ui.theme.MoodBlack
@@ -48,7 +54,6 @@ import com.example.dayreview.ui.theme.MoodBlack
 // --- DATA MODELS ---
 data class MoodOption(val id: String, val color: Color, val shape: Shape)
 
-// Custom Shapes
 val TriangleShape = GenericShape { size, _ ->
     moveTo(size.width / 2f, 0f)
     lineTo(size.width, size.height)
@@ -67,19 +72,17 @@ enum class AppTab { Plan, Habits, Tracker }
 
 @Composable
 fun TodayScreen(viewModel: DayReviewViewModel) {
-    // --- OBSERVE DATABASE ---
     val selectedDate by viewModel.selectedDate.collectAsState()
     val tasks by viewModel.tasks.collectAsState()
     val habits by viewModel.habits.collectAsState()
     val ratingsMap by viewModel.ratings.collectAsState()
-    val ghostTasks by viewModel.ghostTasks.collectAsState() // Unfinished from yesterday
+    val ghostTasks by viewModel.ghostTasks.collectAsState() 
 
     val today = remember { LocalDate.now() }
     val currentTime = remember { LocalTime.now() }
     
     var currentTab by remember { mutableStateOf(AppTab.Plan) }
 
-    // Dialogs
     var showAddTaskDialog by remember { mutableStateOf(false) }
     var showAddHabitDialog by remember { mutableStateOf(false) }
     var taskToEdit by remember { mutableStateOf<TaskEntity?>(null) }
@@ -111,16 +114,10 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
             TopHeader(selectedDate) { newMonth -> viewModel.setDate(selectedDate.withMonth(newMonth.value).withDayOfMonth(1)) }
             Spacer(modifier = Modifier.height(12.dp))
             
-            // Calendar matches Rating Map
-            // Map<LocalDate, String> -> We need Map<LocalDate, MoodOption>
-            val ratingVisuals = ratingsMap.mapValues { entry -> 
-                AvailableMoods.find { it.id == entry.value } 
-            }
-            
+            val ratingVisuals = ratingsMap.mapValues { entry -> AvailableMoods.find { it.id == entry.value } }
             MonthCalendar(selectedDate, today, ratingVisuals) { viewModel.setDate(it) }
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Rating Section
             val isRated = ratingsMap.containsKey(today)
             val isTimeToShow = currentTime.hour >= 14
             
@@ -142,7 +139,7 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
                 when (tab) {
                     AppTab.Plan -> PlanContent(
                         tasks = tasks,
-                        ghostTasks = ghostTasks, // Pass ghosts here
+                        ghostTasks = ghostTasks,
                         isEditable = isEditable,
                         onCheck = { viewModel.toggleTask(it) },
                         onUncheck = { viewModel.toggleTask(it) },
@@ -159,12 +156,9 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
         }
     }
     
-    // Dialogs
     if (showAddTaskDialog) { TaskDialog("New Task", "", { showAddTaskDialog = false }) { txt -> viewModel.addTask(txt); showAddTaskDialog = false } }
     if (showAddHabitDialog) { TaskDialog("New Habit", "", { showAddHabitDialog = false }) { txt -> viewModel.addHabit(txt); showAddHabitDialog = false } }
-    
     if (taskToEdit != null) { TaskDialog("Edit Task", taskToEdit!!.title, { taskToEdit = null }) { txt -> viewModel.updateTaskTitle(taskToEdit!!, txt); taskToEdit = null } }
-    
     if (habitToEdit != null) { 
         HabitEditDialog(habitToEdit!!, { habitToEdit = null }) { title, color -> 
             viewModel.updateHabit(habitToEdit!!.copy(title = title, colorArgb = color.toArgb()))
@@ -173,43 +167,21 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
     }
 }
 
-// --- PLAN CONTENT WITH GHOST TASKS ---
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun PlanContent(
-    tasks: List<TaskEntity>, 
-    ghostTasks: List<TaskEntity>,
-    isEditable: Boolean, 
-    onCheck: (TaskEntity) -> Unit, 
-    onUncheck: (TaskEntity) -> Unit, 
-    onEdit: (TaskEntity) -> Unit
-) {
+fun PlanContent(tasks: List<TaskEntity>, ghostTasks: List<TaskEntity>, isEditable: Boolean, onCheck: (TaskEntity) -> Unit, onUncheck: (TaskEntity) -> Unit, onEdit: (TaskEntity) -> Unit) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
-        
-        // GHOST SECTION
         if (ghostTasks.isNotEmpty() && isEditable) {
-            item {
-                Text("Unfinished Yesterday", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
-            }
+            item { Text("Unfinished Yesterday", style = MaterialTheme.typography.labelMedium, color = Color.Gray) }
             items(ghostTasks.size) { i ->
                 val task = ghostTasks[i]
-                // Faded visual
-                Row(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFFF9F9F9))
-                        .padding(16.dp)
-                        .alpha(0.6f), // Fade effect
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFF9F9F9)).padding(16.dp).alpha(0.6f), verticalAlignment = Alignment.CenterVertically) {
                     Text(task.title, color = Color.Gray, modifier = Modifier.weight(1f))
-                    // Simple "Move to Today" logic would go here later
                     Icon(Icons.Default.Add, "Move", tint = Color.Black) 
                 }
             }
             item { Spacer(modifier = Modifier.height(8.dp)) }
         }
-
-        // REGULAR TASKS
         if (tasks.isEmpty() && ghostTasks.isEmpty()) { 
              item { Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) { Text("No tasks today.", color = Color.LightGray) } }
         } else {
@@ -228,64 +200,41 @@ fun PlanContent(
     }
 }
 
-// --- HABITS (Using Database Entities) ---
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HabitsContent(habits: List<HabitEntity>, onToggle: (HabitEntity) -> Unit, onEdit: (HabitEntity) -> Unit) {
     if (habits.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No habits yet.", color = Color.LightGray) } }
-    
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
         items(habits.size) { i ->
             val habit = habits[i]
             val color = Color(habit.colorArgb)
-            // Note: We need a complex query to get 'streak' and 'history' and 'isDoneToday'.
-            // For now, simpler visual:
-            Row(
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
-                    .border(1.dp, Color(0xFFF0F0F0), RoundedCornerShape(16.dp))
-                    .combinedClickable(onClick = { onToggle(habit) }, onLongClick = { onEdit(habit) })
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, Color(0xFFF0F0F0), RoundedCornerShape(16.dp)).combinedClickable(onClick = { /* No action on card yet */ }, onLongClick = { onEdit(habit) }).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(habit.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    // Heatmap (Dummy visual based on ID for now, just to show UI)
+                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        repeat(15) { 
+                            Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(if ((it + habit.id.toInt()) % 3 != 0) color else Color(0xFFF0F0F0))) 
+                        }
+                    }
                 }
-                Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(color).clickable { onToggle(habit) }) {
-                   // Simple Check (Optimistic UI would be better, but we need DB read)
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("🔥 ${habit.streak}", fontSize = 12.sp, color = Color.Gray)
+                    Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(if (habit.isDoneToday) color else Color(0xFFF0F0F0)).clickable { onToggle(habit) }, contentAlignment = Alignment.Center) {
+                        if (habit.isDoneToday) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
                 }
             }
         }
     }
 }
 
-// --- EDIT DIALOGS ---
+// ... Reused Helpers ...
 @Composable
-fun HabitEditDialog(habit: HabitEntity, onDismiss: () -> Unit, onConfirm: (String, Color) -> Unit) {
-    var text by remember { mutableStateOf(habit.title) }
-    var selectedColor by remember { mutableStateOf(Color(habit.colorArgb)) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Edit Habit") }, text = { Column { OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("Title") }, singleLine = true); Spacer(modifier = Modifier.height(16.dp)); Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { HabitColors.forEach { color -> Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(color).border(2.dp, if (selectedColor == color) Color.Black else Color.Transparent, CircleShape).clickable { selectedColor = color }) } } } }, confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text, selectedColor) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, containerColor = Color.White)
-}
-
-// ... Reuse existing Calendar & Header Components ...
+fun HabitEditDialog(habit: HabitEntity, onDismiss: () -> Unit, onConfirm: (String, Color) -> Unit) { var text by remember { mutableStateOf(habit.title) }; var selectedColor by remember { mutableStateOf(Color(habit.colorArgb)) }; AlertDialog(onDismissRequest = onDismiss, title = { Text("Edit Habit") }, text = { Column { OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("Title") }, singleLine = true); Spacer(modifier = Modifier.height(16.dp)); Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { HabitColors.forEach { color -> Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(color).border(2.dp, if (selectedColor == color) Color.Black else Color.Transparent, CircleShape).clickable { selectedColor = color }) } } } }, confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text, selectedColor) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, containerColor = Color.White) }
 @Composable
-fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<LocalDate, MoodOption?>, onDateSelected: (LocalDate) -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().height(260.dp).background(Color(0xFFF8F9FA), RoundedCornerShape(24.dp)).padding(12.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { listOf("S", "M", "T", "W", "T", "F", "S").forEach { day -> Text(day, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.weight(1f), textAlign = TextAlign.Center) } }
-        Spacer(modifier = Modifier.height(4.dp))
-        val daysInMonth = displayedDate.lengthOfMonth()
-        val startOffset = displayedDate.withDayOfMonth(1).dayOfWeek.value % 7 
-        LazyVerticalGrid(columns = GridCells.Fixed(7), modifier = Modifier.fillMaxSize(), userScrollEnabled = false) {
-            items(42) { index ->
-                val dayNum = index - startOffset + 1
-                if (index < startOffset || dayNum > daysInMonth) { Box(modifier = Modifier.size(30.dp)) } else {
-                    val cellDate = displayedDate.withDayOfMonth(dayNum)
-                    val rating = ratedDays[cellDate]; val isSelected = cellDate == displayedDate
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(32.dp).clip(rating?.shape ?: CircleShape).background(when { rating != null -> rating.color; isSelected -> Color.Black; else -> Color.Transparent }).clickable { onDateSelected(cellDate) }) { Text("$dayNum", fontSize = 12.sp, fontWeight = if (cellDate==today) FontWeight.ExtraBold else FontWeight.Medium, color = if (rating != null || isSelected) Color.White else Color.Black) }
-                }
-            }
-        }
-    }
-}
+fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<LocalDate, MoodOption?>, onDateSelected: (LocalDate) -> Unit) { Column(modifier = Modifier.fillMaxWidth().height(260.dp).background(Color(0xFFF8F9FA), RoundedCornerShape(24.dp)).padding(12.dp)) { Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { listOf("S", "M", "T", "W", "T", "F", "S").forEach { day -> Text(day, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.weight(1f), textAlign = TextAlign.Center) } }; Spacer(modifier = Modifier.height(4.dp)); val daysInMonth = displayedDate.lengthOfMonth(); val startOffset = displayedDate.withDayOfMonth(1).dayOfWeek.value % 7; LazyVerticalGrid(columns = GridCells.Fixed(7), modifier = Modifier.fillMaxSize(), userScrollEnabled = false) { items(42) { index -> val dayNum = index - startOffset + 1; if (index < startOffset || dayNum > daysInMonth) { Box(modifier = Modifier.size(30.dp)) } else { val cellDate = displayedDate.withDayOfMonth(dayNum); val rating = ratedDays[cellDate]; val isSelected = cellDate == displayedDate; Box(contentAlignment = Alignment.Center, modifier = Modifier.size(32.dp).clip(rating?.shape ?: CircleShape).background(when { rating != null -> rating.color; isSelected -> Color.Black; else -> Color.Transparent }).clickable { onDateSelected(cellDate) }) { Text("$dayNum", fontSize = 12.sp, fontWeight = if (cellDate==today) FontWeight.ExtraBold else FontWeight.Medium, color = if (rating != null || isSelected) Color.White else Color.Black) } } } } } }
 @Composable
 fun TabSegmentControl(selected: AppTab, onSelect: (AppTab) -> Unit) { Row(modifier = Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF0F0F0)).padding(4.dp), horizontalArrangement = Arrangement.SpaceBetween) { AppTab.values().forEach { tab -> val isSelected = selected == tab; Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(8.dp)).background(if (isSelected) Color.White else Color.Transparent).clickable { onSelect(tab) }) { Text(tab.name, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.Black else Color.Gray, fontSize = 14.sp) } } } }
 @Composable
@@ -296,5 +245,3 @@ fun TopHeader(currentDate: LocalDate, onMonthSelected: (Month) -> Unit) { var me
 fun MoodButton(mood: MoodOption, onClick: () -> Unit) { Box(modifier = Modifier.size(48.dp).clip(mood.shape).background(mood.color).clickable { onClick() }) }
 @Composable
 fun TaskDialog(title: String, initialText: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) { var text by remember { mutableStateOf(initialText) }; AlertDialog(onDismissRequest = onDismiss, title = { Text(title) }, text = { OutlinedTextField(value = text, onValueChange = { text = it }, placeholder = { Text("Description") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }, confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, containerColor = Color.White) }
-// Modifiers
-fun Modifier.alpha(value: Float) = this.then(Modifier.background(Color.Transparent.copy(alpha = 1f - value)))
