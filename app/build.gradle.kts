@@ -37,7 +37,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.activity:activity-compose:1.9.3")
     
-    // ViewModel Utilities
+    // ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     
     // Room Database
@@ -45,4 +45,7 @@ dependencies {
     implementation("androidx.room:room-runtime:$room_version")
     implementation("androidx.room:room-ktx:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
+
+    // MISSING LIBRARY: Required for Face Icons (Sentiment...)
+    implementation("androidx.compose.material:material-icons-extended")
 }
