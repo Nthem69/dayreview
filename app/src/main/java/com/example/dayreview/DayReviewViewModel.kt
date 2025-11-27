@@ -26,7 +26,6 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     val tasks = _selectedDate.flatMapLatest { date -> taskDao.getTasksForDate(date.toString()) }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyList())
     val ghostTasks = taskDao.getUnfinishedPastTasks(LocalDate.now().toString()).stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyList())
     val habits = habitDao.getAllHabits().stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyList())
-    
     val ratings = ratingDao.getAllRatings().map { list -> list.associate { LocalDate.parse(it.date) to it.moodId } }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyMap())
     val moodConfigs = moodDao.getAllConfigs().stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyList())
 
@@ -39,18 +38,37 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
                 moodDao.insertConfig(MoodConfigEntity(4, "Good", android.graphics.Color.parseColor("#76FF03"), R.drawable.ic_mood_4, true))
                 moodDao.insertConfig(MoodConfigEntity(5, "???", android.graphics.Color.parseColor("#9E9E9E"), R.drawable.ic_mood_5, true))
             }
-            if (habitDao.getAllHabits().first().isEmpty()) {
-                habitDao.insertHabit(HabitEntity(title = "💻 Build in Public", colorArgb = android.graphics.Color.parseColor("#4FB3FF")))
-                addTask("Setup Project")
-            }
         }
     }
 
+    // --- ACTIONS ---
+
     fun setDate(date: LocalDate) { _selectedDate.value = date }
-    fun addTask(title: String) { viewModelScope.launch { taskDao.insertTask(TaskEntity(title = title, isDone = false, date = _selectedDate.value.toString())) } }
+    
+    // Logic: If switching to current month, select TODAY. Else select 1st.
+    fun changeMonth(newMonthValue: Int) {
+        val today = LocalDate.now()
+        val currentSelected = _selectedDate.value
+        
+        if (newMonthValue == today.monthValue && currentSelected.year == today.year) {
+            setDate(today)
+        } else {
+            setDate(currentSelected.withMonth(newMonthValue).withDayOfMonth(1))
+        }
+    }
+
+    fun addTask(title: String, time: String?) { 
+        viewModelScope.launch { taskDao.insertTask(TaskEntity(title = title, isDone = false, date = _selectedDate.value.toString(), time = time)) } 
+    }
     fun toggleTask(task: TaskEntity) { viewModelScope.launch { taskDao.updateTask(task.copy(isDone = !task.isDone)) } }
     fun updateTaskTitle(task: TaskEntity, newTitle: String) { viewModelScope.launch { taskDao.updateTask(task.copy(title = newTitle)) } }
-    fun addHabit(title: String) { viewModelScope.launch { habitDao.insertHabit(HabitEntity(title = title, colorArgb = android.graphics.Color.parseColor("#4FB3FF"), history = List(30){false})) } }
+    fun deleteTask(task: TaskEntity) { viewModelScope.launch { taskDao.deleteTask(task) } }
+
+    fun addHabit(title: String, color: Int) { 
+        viewModelScope.launch { 
+            habitDao.insertHabit(HabitEntity(title = title, colorArgb = color, history = List(30){false})) 
+        } 
+    }
     
     fun toggleHabit(habitId: Long) {
         viewModelScope.launch {
@@ -64,6 +82,8 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
     fun updateHabit(habit: HabitEntity) { viewModelScope.launch { habitDao.updateHabit(habit) } }
+    fun deleteHabit(habit: HabitEntity) { viewModelScope.launch { /* Delete not in DAO yet, usually safe to keep habits, but we can add later */ } } // Placeholder
+    
     fun setRating(moodId: Int) { viewModelScope.launch { ratingDao.setRating(RatingEntity(date = LocalDate.now().toString(), moodId = moodId)) } }
     fun updateMoodConfig(config: MoodConfigEntity) { viewModelScope.launch { moodDao.updateConfig(config) } }
 }
