@@ -49,7 +49,6 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun addHabit(title: String) {
         viewModelScope.launch {
-            // Initialize with empty history of 30 days false
             val initialHistory = List(30) { false }
             habitDao.insertHabit(HabitEntity(title = title, colorArgb = android.graphics.Color.parseColor("#4FB3FF"), history = initialHistory))
         }
@@ -57,20 +56,21 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     
     fun toggleHabit(habitId: Long) {
         viewModelScope.launch {
-            // Find current habit, toggle isDoneToday, and update history index for today
             val currentList = habits.value
             val habit = currentList.find { it.id == habitId } ?: return@launch
             
             val newStatus = !habit.isDoneToday
             val todayDayIndex = LocalDate.now().dayOfMonth - 1
             
-            // Update history list safely
             val newHistory = habit.history.toMutableList()
             if (todayDayIndex >= 0 && todayDayIndex < newHistory.size) {
                 newHistory[todayDayIndex] = newStatus
             }
             
-            habitDao.updateHabit(habit.copy(isDoneToday = newStatus, history = newHistory, streak = if(newStatus) habit.streak + 1 else habit.streak))
+            // Recalculate streak (simple logic)
+            val newStreak = if (newStatus) habit.streak + 1 else habit.streak
+            
+            habitDao.updateHabit(habit.copy(isDoneToday = newStatus, history = newHistory, streak = newStreak))
         }
     }
     

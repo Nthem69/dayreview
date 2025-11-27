@@ -18,7 +18,7 @@ data class HabitEntity(
     val colorArgb: Int,
     val streak: Int = 0,
     val isDoneToday: Boolean = false,
-    val history: List<Boolean> = emptyList() // The missing field!
+    val history: List<Boolean> = emptyList()
 )
 
 @Entity(tableName = "ratings")

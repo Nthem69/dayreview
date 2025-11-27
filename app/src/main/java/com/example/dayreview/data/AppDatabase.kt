@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
+// Note: version bumped to 2 to force a refresh (destructive migration)
 @Database(entities = [TaskEntity::class, HabitEntity::class, RatingEntity::class], version = 2)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -23,7 +24,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "dayreview_db"
                 )
-                .fallbackToDestructiveMigration() // Reset DB if schema changes
+                .fallbackToDestructiveMigration() // Wipe old bad data
                 .build()
                 INSTANCE = instance
                 instance
