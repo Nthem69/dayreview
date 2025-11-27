@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -19,6 +20,11 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.rounded.FaceRetouchingNatural
+import androidx.compose.material.icons.rounded.SentimentDissatisfied
+import androidx.compose.material.icons.rounded.SentimentNeutral
+import androidx.compose.material.icons.rounded.SentimentSatisfied
+import androidx.compose.material.icons.rounded.SentimentVeryDissatisfied
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,14 +32,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.dayreview.DayReviewViewModel
-import com.example.dayreview.data.*
+import com.example.dayreview.data.TaskEntity
+import com.example.dayreview.data.HabitEntity
+import com.example.dayreview.data.MoodConfigEntity
+import com.example.dayreview.R
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.Month
@@ -42,11 +56,19 @@ import java.util.Locale
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+
+// --- GLOBAL CONSTANTS (Fixed Scope Issue) ---
+val HabitColors = listOf(
+    Color(0xFF4FB3FF), // Blue
+    Color(0xFFFF6F3B), // Orange
+    Color(0xFF4CAF50), // Green
+    Color(0xFFE91E63), // Pink
+    Color(0xFF9C27B0)  // Purple
+)
 
 enum class AppTab { Plan, Habits, Tracker }
 
+// --- MAIN SCREEN ---
 @Composable
 fun TodayScreen(viewModel: DayReviewViewModel) {
     val selectedDate by viewModel.selectedDate.collectAsState()
@@ -61,6 +83,7 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
     var currentTab by remember { mutableStateOf(AppTab.Plan) }
     var showSettings by remember { mutableStateOf(false) }
 
+    // Dialog States
     var showAddTaskDialog by remember { mutableStateOf(false) }
     var showAddHabitDialog by remember { mutableStateOf(false) }
     var taskToEdit by remember { mutableStateOf<TaskEntity?>(null) }
@@ -69,6 +92,7 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
     val isToday = selectedDate == today
     val isEditable = selectedDate >= today
 
+    // Settings Navigation
     if (showSettings) {
         SettingsScreen(viewModel) { showSettings = false }
         return
@@ -97,10 +121,12 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
             TopHeader(selectedDate, { showSettings = true }) { newMonth -> viewModel.setDate(selectedDate.withMonth(newMonth.value).withDayOfMonth(1)) }
             Spacer(modifier = Modifier.height(12.dp))
             
+            // Calendar
             val ratingVisuals = ratingsMap.mapValues { entry -> moodConfigs.find { it.id == entry.value } }
             MonthCalendar(selectedDate, today, ratingVisuals) { viewModel.setDate(it) }
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Rating
             val isRated = ratingsMap.containsKey(today)
             val isTimeToShow = currentTime.hour >= 14
             
@@ -141,9 +167,16 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
         }
     }
     
-    if (showAddTaskDialog) { TaskDialog("New Task", "", { showAddTaskDialog = false }) { txt -> viewModel.addTask(txt); showAddTaskDialog = false } }
-    if (showAddHabitDialog) { TaskDialog("New Habit", "", { showAddHabitDialog = false }) { txt -> viewModel.addHabit(txt); showAddHabitDialog = false } }
-    if (taskToEdit != null) { TaskDialog("Edit Task", taskToEdit!!.title, { taskToEdit = null }) { txt -> viewModel.updateTaskTitle(taskToEdit!!, txt); taskToEdit = null } }
+    // --- DIALOGS (Cleanly separated from Composable tree) ---
+    if (showAddTaskDialog) { 
+        TaskDialog("New Task", "", { showAddTaskDialog = false }) { txt -> viewModel.addTask(txt); showAddTaskDialog = false } 
+    }
+    if (showAddHabitDialog) { 
+        TaskDialog("New Habit", "", { showAddHabitDialog = false }) { txt -> viewModel.addHabit(txt); showAddHabitDialog = false } 
+    }
+    if (taskToEdit != null) { 
+        TaskDialog("Edit Task", taskToEdit!!.title, { taskToEdit = null }) { txt -> viewModel.updateTaskTitle(taskToEdit!!, txt); taskToEdit = null } 
+    }
     if (habitToEdit != null) { 
         HabitEditDialog(habitToEdit!!, { habitToEdit = null }) { title, color -> 
             viewModel.updateHabit(habitToEdit!!.copy(title = title, colorArgb = color.toArgb()))
@@ -153,10 +186,12 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
 }
 
 // --- COMPONENTS ---
+
 @Composable
 fun MoodFaceButton(config: MoodConfigEntity, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(config.colorArgb)).clickable { onClick() }) {
+            // Using painterResource because icons are loaded from DB/Drawable
             Icon(painter = painterResource(config.iconResId), contentDescription = config.label, tint = Color.White, modifier = Modifier.size(24.dp))
         }
         Spacer(modifier = Modifier.height(4.dp))
@@ -164,6 +199,52 @@ fun MoodFaceButton(config: MoodConfigEntity, onClick: () -> Unit) {
     }
 }
 
+@Composable
+fun HabitEditDialog(habit: HabitEntity, onDismiss: () -> Unit, onConfirm: (String, Color) -> Unit) {
+    var text by remember { mutableStateOf(habit.title) }
+    var selectedColor by remember { mutableStateOf(Color(habit.colorArgb)) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss, 
+        title = { Text("Edit Habit", color = Color.Black) }, 
+        text = { 
+            Column { 
+                OutlinedTextField(
+                    value = text, 
+                    onValueChange = { text = it }, 
+                    label = { Text("Title", color = Color.Gray) }, 
+                    singleLine = true, 
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.Black, unfocusedTextColor = Color.Black, cursorColor = Color.Black)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Color Picker Row
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { 
+                    HabitColors.forEach { color -> 
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(color)
+                                .border(2.dp, if (selectedColor == color) Color.Black else Color.Transparent, CircleShape)
+                                .clickable { selectedColor = color }
+                        ) 
+                    } 
+                } 
+            } 
+        }, 
+        confirmButton = { 
+            Button(
+                onClick = { if (text.isNotBlank()) onConfirm(text, selectedColor) }, 
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
+            ) { Text("Save", color = Color.White) } 
+        }, 
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, 
+        containerColor = Color.White
+    )
+}
+
+// ... (Rest of existing components: PlanContent, HabitsContent, Calendar, etc. remain unchanged) ...
 @Composable
 fun TopHeader(currentDate: LocalDate, onSettingsClick: () -> Unit, onMonthSelected: (Month) -> Unit) { 
     var menuExpanded by remember { mutableStateOf(false) }
@@ -200,5 +281,4 @@ fun TabSegmentControl(selected: AppTab, onSelect: (AppTab) -> Unit) { Row(modifi
 fun TrackerContent() { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Tracker coming soon...", color = Color.Gray) } }
 @Composable
 fun TaskDialog(title: String, initialText: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) { var text by remember { mutableStateOf(initialText) }; AlertDialog(onDismissRequest = onDismiss, title = { Text(title, color = Color.Black) }, text = { OutlinedTextField(value = text, onValueChange = { text = it }, placeholder = { Text("Description", color = Color.Gray) }, singleLine = true, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.Black, unfocusedTextColor = Color.Black, cursorColor = Color.Black)) }, confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save", color = Color.White) } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, containerColor = Color.White) }
-@Composable
-fun HabitEditDialog(habit: HabitEntity, onDismiss: () -> Unit, onConfirm: (String, Color) -> Unit) { var text by remember { mutableStateOf(habit.title) }; var selectedColor by remember { mutableStateOf(Color(habit.colorArgb)) }; AlertDialog(onDismissRequest = onDismiss, title = { Text("Edit Habit", color = Color.Black) }, text = { Column { OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("Title", color = Color.Gray) }, singleLine = true, colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.Black, unfocusedTextColor = Color.Black, cursorColor = Color.Black)); Spacer(modifier = Modifier.height(16.dp)); Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { HabitColors.forEach { color -> Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(color).border(2.dp, if (selectedColor == color) Color.Black else Color.Transparent, CircleShape).clickable { selectedColor = color }) } } } }, confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text, selectedColor) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save", color = Color.White) } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, containerColor = Color.White) }
+fun Modifier.alpha(value: Float) = this.then(Modifier.background(Color.Transparent.copy(alpha = 1f - value)))
