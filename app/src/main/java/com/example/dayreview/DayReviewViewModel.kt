@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import kotlin.math.max
+import kotlin.random.Random
 
 class DayReviewViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
@@ -37,9 +38,12 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     init {
         viewModelScope.launch {
             if (habitDao.getAllHabits().first().isEmpty()) {
-                addHabit("💻 Build in Public")
-                addHabit("📚 Read 10 pages")
-                addHabit("💪 Workout")
+                // RANDOM HISTORY GENERATOR for initial dummy data
+                fun randomHistory(): List<Boolean> = List(30) { Random.nextBoolean() }
+                
+                habitDao.insertHabit(HabitEntity(title = "💻 Build in Public", colorArgb = android.graphics.Color.parseColor("#4FB3FF"), history = randomHistory(), streak = 6))
+                habitDao.insertHabit(HabitEntity(title = "📚 Read 10 pages", colorArgb = android.graphics.Color.parseColor("#FF6F3B"), history = randomHistory(), streak = 1))
+                habitDao.insertHabit(HabitEntity(title = "💪 Workout", colorArgb = android.graphics.Color.parseColor("#E0E0E0"), history = randomHistory(), streak = 0))
                 addTask("Setup Project")
             }
         }
@@ -81,7 +85,6 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
                 newHistory[todayDayIndex] = newStatus
             }
             
-            // FIX: Streak logic (Increment on Check, Decrement on Uncheck)
             val newStreak = if (newStatus) habit.streak + 1 else max(0, habit.streak - 1)
             
             habitDao.updateHabit(habit.copy(isDoneToday = newStatus, history = newHistory, streak = newStreak))

@@ -28,6 +28,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -166,114 +168,12 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
     }
 }
 
-// --- HABITS CONTENT (Fixed Heatmap Shape) ---
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun HabitsContent(habits: List<HabitEntity>, onToggle: (HabitEntity) -> Unit, onEdit: (HabitEntity) -> Unit) {
-    if (habits.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No habits yet.", color = Color.LightGray) } }
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
-        items(habits.size) { i ->
-            val habit = habits[i]
-            val color = Color(habit.colorArgb)
-            Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, Color(0xFFF0F0F0), RoundedCornerShape(16.dp)).combinedClickable(onClick = { /* No action */ }, onLongClick = { onEdit(habit) }).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(habit.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color.Black)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // WAVE HEATMAP (5 rows x 7 cols)
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        repeat(5) { r ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                                repeat(7) { c ->
-                                    // Logic: Skip first 2 in Row 0, Skip last 2 in Row 4
-                                    val isVisible = !((r == 0 && c < 2) || (r == 4 && c > 4))
-                                    
-                                    if (isVisible) {
-                                        // Map (r,c) to a linear index for history
-                                        // Since we skip 2 at start, effective index = (r * 7 + c) - 2
-                                        val historyIndex = (r * 7 + c) - 2
-                                        
-                                        if (historyIndex >= 0 && historyIndex < habit.history.size) {
-                                            val isFilled = habit.history[historyIndex]
-                                            Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(if (isFilled) color else Color(0xFFF0F0F0)))
-                                        } else {
-                                            // Empty slot if out of bounds
-                                            Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(Color(0xFFF0F0F0)))
-                                        }
-                                    } else {
-                                        // Invisible spacer
-                                        Box(modifier = Modifier.size(8.dp).background(Color.Transparent))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("🔥 ${habit.streak}", fontSize = 12.sp, color = Color.Gray)
-                    Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(if (habit.isDoneToday) color else Color(0xFFF0F0F0)).clickable { onToggle(habit) }, contentAlignment = Alignment.Center) {
-                        if (habit.isDoneToday) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    }
-                }
-            }
-        }
-    }
-}
-
-// --- UPDATED DIALOGS (Fixed Button Text Color) ---
-@Composable
-fun TaskDialog(title: String, initialText: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-    var text by remember { mutableStateOf(initialText) }
-    AlertDialog(
-        onDismissRequest = onDismiss, 
-        title = { Text(title, color = Color.Black) }, 
-        text = { 
-            OutlinedTextField(
-                value = text, 
-                onValueChange = { text = it }, 
-                placeholder = { Text("Description", color = Color.Gray) }, 
-                singleLine = true, 
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.Black, unfocusedTextColor = Color.Black, cursorColor = Color.Black)
-            ) 
-        }, 
-        // FIX: Explicit White Text on Black Button
-        confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save", color = Color.White) } }, 
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, 
-        containerColor = Color.White
-    )
-}
-
-@Composable
-fun HabitEditDialog(habit: HabitEntity, onDismiss: () -> Unit, onConfirm: (String, Color) -> Unit) {
-    var text by remember { mutableStateOf(habit.title) }
-    var selectedColor by remember { mutableStateOf(Color(habit.colorArgb)) }
-    AlertDialog(
-        onDismissRequest = onDismiss, 
-        title = { Text("Edit Habit", color = Color.Black) }, 
-        text = { 
-            Column { 
-                OutlinedTextField(
-                    value = text, 
-                    onValueChange = { text = it }, 
-                    label = { Text("Title", color = Color.Gray) }, 
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.Black, unfocusedTextColor = Color.Black, cursorColor = Color.Black)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { HabitColors.forEach { color -> Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(color).border(2.dp, if (selectedColor == color) Color.Black else Color.Transparent, CircleShape).clickable { selectedColor = color }) } } 
-            } 
-        }, 
-        confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text, selectedColor) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save", color = Color.White) } }, 
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, 
-        containerColor = Color.White
-    )
-}
-
-// ... Rest of UI Components (Unchanged) ...
+// --- PLAN CONTENT (Strict Press-and-Hold) ---
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun PlanContent(tasks: List<TaskEntity>, ghostTasks: List<TaskEntity>, isEditable: Boolean, onCheck: (TaskEntity) -> Unit, onUncheck: (TaskEntity) -> Unit, onEdit: (TaskEntity) -> Unit) {
+    val haptic = LocalHapticFeedback.current
+    
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
         if (ghostTasks.isNotEmpty() && isEditable) {
             item { Text("Unfinished Yesterday", style = MaterialTheme.typography.labelMedium, color = Color.Gray) }
@@ -293,7 +193,28 @@ fun PlanContent(tasks: List<TaskEntity>, ghostTasks: List<TaskEntity>, isEditabl
                 val task = tasks[i]
                 val dismissState = rememberSwipeToDismissBoxState(confirmValueChange = { if (it == SwipeToDismissBoxValue.EndToStart) { onEdit(task); false } else false })
                 SwipeToDismissBox(state = dismissState, backgroundContent = { Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color.LightGray).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterEnd) { Icon(Icons.Default.Edit, "Edit", tint = Color.White) } }, enableDismissFromStartToEnd = false) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFF8F9FA)).combinedClickable(onClick = { onCheck(task) }, onLongClick = { onUncheck(task) }).padding(16.dp)) {
+                    // LOGIC:
+                    // If !Done -> Tap to Check
+                    // If Done -> Hold to Uncheck (Tap does nothing)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically, 
+                        modifier = Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFFF8F9FA))
+                            .combinedClickable(
+                                onClick = { 
+                                    if (!task.isDone) onCheck(task) 
+                                    // If done, tap is ignored (as requested)
+                                },
+                                onLongClick = { 
+                                    if (task.isDone) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress) // Tactile confirmation
+                                        onUncheck(task)
+                                    }
+                                }
+                            )
+                            .padding(16.dp)
+                    ) {
                         Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(if (task.isDone) Color.Black else Color.Transparent, CircleShape).border(2.dp, if(task.isDone) Color.Black else Color.Gray, CircleShape), contentAlignment = Alignment.Center) { if (task.isDone) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
                         Spacer(modifier = Modifier.width(16.dp))
                         Text(task.title, color = if (task.isDone) Color.Gray else Color.Black, style = MaterialTheme.typography.bodyLarge)
@@ -303,6 +224,66 @@ fun PlanContent(tasks: List<TaskEntity>, ghostTasks: List<TaskEntity>, isEditabl
         }
     }
 }
+
+// --- HABITS CONTENT (Rectangular + Spread Heatmap) ---
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun HabitsContent(habits: List<HabitEntity>, onToggle: (HabitEntity) -> Unit, onEdit: (HabitEntity) -> Unit) {
+    if (habits.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No habits yet.", color = Color.LightGray) } }
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
+        items(habits.size) { i ->
+            val habit = habits[i]
+            val color = Color(habit.colorArgb)
+            Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, Color(0xFFF0F0F0), RoundedCornerShape(16.dp)).combinedClickable(onClick = { /* No action */ }, onLongClick = { onEdit(habit) }).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(habit.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color.Black)
+                    Spacer(modifier = Modifier.height(10.dp)) // More space above map
+                    
+                    // FIX: Heatmap Styling
+                    // Rectangles (12.dp width x 6.dp height)
+                    // Spacing increased to 4.dp
+                    // Random aesthetic (5 rows, skips corners)
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        repeat(5) { r ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                repeat(7) { c ->
+                                    val isVisible = !((r == 0 && c < 2) || (r == 4 && c > 4))
+                                    if (isVisible) {
+                                        val historyIndex = (r * 7 + c) - 2
+                                        if (historyIndex >= 0 && historyIndex < habit.history.size) {
+                                            val isFilled = habit.history[historyIndex]
+                                            Box(modifier = Modifier
+                                                .width(12.dp).height(6.dp) // Rectangular
+                                                .clip(RoundedCornerShape(2.dp))
+                                                .background(if (isFilled) color else Color(0xFFF0F0F0))
+                                            )
+                                        } else {
+                                            Box(modifier = Modifier.width(12.dp).height(6.dp).clip(RoundedCornerShape(2.dp)).background(Color(0xFFF0F0F0)))
+                                        }
+                                    } else {
+                                        Box(modifier = Modifier.width(12.dp).height(6.dp).background(Color.Transparent))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("🔥 ${habit.streak}", fontSize = 12.sp, color = Color.Gray)
+                    Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(if (habit.isDoneToday) color else Color(0xFFF0F0F0)).clickable { onToggle(habit) }, contentAlignment = Alignment.Center) {
+                        if (habit.isDoneToday) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ... (Dialogs & Helpers remain same as previous working version) ...
+@Composable
+fun TaskDialog(title: String, initialText: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) { var text by remember { mutableStateOf(initialText) }; AlertDialog(onDismissRequest = onDismiss, title = { Text(title, color = Color.Black) }, text = { OutlinedTextField(value = text, onValueChange = { text = it }, placeholder = { Text("Description", color = Color.Gray) }, singleLine = true, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.Black, unfocusedTextColor = Color.Black, cursorColor = Color.Black)) }, confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save", color = Color.White) } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, containerColor = Color.White) }
+@Composable
+fun HabitEditDialog(habit: HabitEntity, onDismiss: () -> Unit, onConfirm: (String, Color) -> Unit) { var text by remember { mutableStateOf(habit.title) }; var selectedColor by remember { mutableStateOf(Color(habit.colorArgb)) }; AlertDialog(onDismissRequest = onDismiss, title = { Text("Edit Habit", color = Color.Black) }, text = { Column { OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("Title", color = Color.Gray) }, singleLine = true, colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.Black, unfocusedTextColor = Color.Black, cursorColor = Color.Black)); Spacer(modifier = Modifier.height(16.dp)); Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { HabitColors.forEach { color -> Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(color).border(2.dp, if (selectedColor == color) Color.Black else Color.Transparent, CircleShape).clickable { selectedColor = color }) } } } }, confirmButton = { Button(onClick = { if (text.isNotBlank()) onConfirm(text, selectedColor) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) { Text("Save", color = Color.White) } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) } }, containerColor = Color.White) }
 @Composable
 fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<LocalDate, MoodOption?>, onDateSelected: (LocalDate) -> Unit) { Column(modifier = Modifier.fillMaxWidth().height(260.dp).background(Color(0xFFF8F9FA), RoundedCornerShape(24.dp)).padding(12.dp)) { Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { listOf("S", "M", "T", "W", "T", "F", "S").forEach { day -> Text(day, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.weight(1f), textAlign = TextAlign.Center) } }; Spacer(modifier = Modifier.height(4.dp)); val daysInMonth = displayedDate.lengthOfMonth(); val startOffset = displayedDate.withDayOfMonth(1).dayOfWeek.value % 7; LazyVerticalGrid(columns = GridCells.Fixed(7), modifier = Modifier.fillMaxSize(), userScrollEnabled = false) { items(42) { index -> val dayNum = index - startOffset + 1; if (index < startOffset || dayNum > daysInMonth) { Box(modifier = Modifier.size(30.dp)) } else { val cellDate = displayedDate.withDayOfMonth(dayNum); val rating = ratedDays[cellDate]; val isSelected = cellDate == displayedDate; Box(contentAlignment = Alignment.Center, modifier = Modifier.size(32.dp).clip(rating?.shape ?: CircleShape).background(when { rating != null -> rating.color; isSelected -> Color.Black; else -> Color.Transparent }).clickable { onDateSelected(cellDate) }) { Text("$dayNum", fontSize = 12.sp, fontWeight = if (cellDate==today) FontWeight.ExtraBold else FontWeight.Medium, color = if (rating != null || isSelected) Color.White else Color.Black) } } } } } }
 @Composable
