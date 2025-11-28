@@ -41,33 +41,23 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    // --- ACTIONS ---
-
     fun setDate(date: LocalDate) { _selectedDate.value = date }
-    
-    // Logic: If switching to current month, select TODAY. Else select 1st.
     fun changeMonth(newMonthValue: Int) {
         val today = LocalDate.now()
         val currentSelected = _selectedDate.value
-        
-        if (newMonthValue == today.monthValue && currentSelected.year == today.year) {
-            setDate(today)
-        } else {
-            setDate(currentSelected.withMonth(newMonthValue).withDayOfMonth(1))
-        }
+        if (newMonthValue == today.monthValue && currentSelected.year == today.year) setDate(today) 
+        else setDate(currentSelected.withMonth(newMonthValue).withDayOfMonth(1))
     }
 
-    fun addTask(title: String, time: String?) { 
-        viewModelScope.launch { taskDao.insertTask(TaskEntity(title = title, isDone = false, date = _selectedDate.value.toString(), time = time)) } 
-    }
+    fun addTask(title: String, time: String?) { viewModelScope.launch { taskDao.insertTask(TaskEntity(title = title, isDone = false, date = _selectedDate.value.toString(), time = time)) } }
     fun toggleTask(task: TaskEntity) { viewModelScope.launch { taskDao.updateTask(task.copy(isDone = !task.isDone)) } }
     fun updateTaskTitle(task: TaskEntity, newTitle: String) { viewModelScope.launch { taskDao.updateTask(task.copy(title = newTitle)) } }
     fun deleteTask(task: TaskEntity) { viewModelScope.launch { taskDao.deleteTask(task) } }
 
     fun addHabit(title: String, color: Int) { 
-        viewModelScope.launch { 
-            habitDao.insertHabit(HabitEntity(title = title, colorArgb = color, history = List(30){false})) 
-        } 
+        // Randomize history for new habits so the heatmap looks alive
+        val history = List(30) { Random.nextBoolean() }
+        viewModelScope.launch { habitDao.insertHabit(HabitEntity(title = title, colorArgb = color, history = history)) } 
     }
     
     fun toggleHabit(habitId: Long) {
@@ -82,7 +72,8 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
     fun updateHabit(habit: HabitEntity) { viewModelScope.launch { habitDao.updateHabit(habit) } }
-    fun deleteHabit(habit: HabitEntity) { viewModelScope.launch { /* Delete not in DAO yet, usually safe to keep habits, but we can add later */ } } // Placeholder
+    // FIX: Implement Delete (Note: HabitDao must support delete)
+    fun deleteHabit(habit: HabitEntity) { viewModelScope.launch { habitDao.deleteHabit(habit) } }
     
     fun setRating(moodId: Int) { viewModelScope.launch { ratingDao.setRating(RatingEntity(date = LocalDate.now().toString(), moodId = moodId)) } }
     fun updateMoodConfig(config: MoodConfigEntity) { viewModelScope.launch { moodDao.updateConfig(config) } }

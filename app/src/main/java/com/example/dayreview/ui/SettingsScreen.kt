@@ -34,7 +34,6 @@ import com.example.dayreview.DayReviewViewModel
 import com.example.dayreview.data.MoodConfigEntity
 import com.example.dayreview.R
 
-// Mega Palette
 val MegaPalette = listOf(
     0xFFF44336, 0xFFE91E63, 0xFF9C27B0, 0xFF673AB7, 0xFF3F51B5, 0xFF2196F3,
     0xFF03A9F4, 0xFF00BCD4, 0xFF009688, 0xFF4CAF50, 0xFF8BC34A, 0xFFCDDC39,
@@ -57,8 +56,9 @@ fun SettingsScreen(viewModel: DayReviewViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings", fontWeight = FontWeight.Bold) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } },
+                title = { Text("Settings", fontWeight = FontWeight.Bold, color = Color.Black) },
+                // FIX: Explicit Black Tint for Back Arrow
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.Black) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
@@ -93,18 +93,23 @@ fun SettingsItem(icon: ImageVector, title: String, iconColor: Color, onClick: ()
             Icon(icon, null, tint = iconColor, modifier = Modifier.size(20.dp))
         }
         Spacer(modifier = Modifier.width(16.dp))
-        Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Text(title, style = MaterialTheme.typography.bodyLarge, color = Color.Black, modifier = Modifier.weight(1f))
         Icon(Icons.Default.ChevronRight, null, tint = Color.Gray)
     }
 }
 
-// Reuse the previous mood editor here as a sub-screen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MoodCustomizationScreen(viewModel: DayReviewViewModel, onBack: () -> Unit) {
     val configs by viewModel.moodConfigs.collectAsState()
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Customize Moods") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } }) },
+        topBar = { 
+            TopAppBar(
+                title = { Text("Customize Moods", color = Color.Black) }, 
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.Black) } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            ) 
+        },
         containerColor = Color.White
     ) { pad ->
         LazyColumn(modifier = Modifier.padding(pad).padding(16.dp)) {
@@ -116,7 +121,6 @@ fun MoodCustomizationScreen(viewModel: DayReviewViewModel, onBack: () -> Unit) {
     }
 }
 
-// Reuse MoodConfigRow from previous build...
 @Composable
 fun MoodConfigRow(config: MoodConfigEntity, onUpdate: (MoodConfigEntity) -> Unit) {
     var showColorPicker by remember { mutableStateOf(false) }
@@ -128,11 +132,14 @@ fun MoodConfigRow(config: MoodConfigEntity, onUpdate: (MoodConfigEntity) -> Unit
                 Icon(painter = painterResource(config.iconResId), contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
             }
             Spacer(modifier = Modifier.width(12.dp))
-            OutlinedTextField(value = config.label, onValueChange = { onUpdate(config.copy(label = it)) }, modifier = Modifier.weight(1f), singleLine = true, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color.Black, unfocusedBorderColor = Color.LightGray))
+            OutlinedTextField(
+                value = config.label, onValueChange = { onUpdate(config.copy(label = it)) }, modifier = Modifier.weight(1f), singleLine = true, 
+                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.Black, unfocusedTextColor = Color.Black, focusedBorderColor = Color.Black, unfocusedBorderColor = Color.LightGray)
+            )
             Spacer(modifier = Modifier.width(12.dp))
             Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(Color(config.colorArgb)).border(1.dp, Color.Gray, CircleShape).clickable { showColorPicker = true })
         }
     }
-    if (showColorPicker) { Dialog(onDismissRequest = { showColorPicker = false }) { Card(colors = CardDefaults.cardColors(containerColor = Color.White)) { Column(Modifier.padding(16.dp)) { Text("Select Color", fontWeight = FontWeight.Bold); Spacer(Modifier.height(12.dp)); LazyVerticalGrid(columns = GridCells.Adaptive(40.dp), modifier = Modifier.height(200.dp)) { items(MegaPalette.size) { i -> Box(modifier = Modifier.size(40.dp).padding(4.dp).clip(CircleShape).background(MegaPalette[i]).clickable { onUpdate(config.copy(colorArgb = MegaPalette[i].toArgb())); showColorPicker = false }) } } } } } }
+    if (showColorPicker) { Dialog(onDismissRequest = { showColorPicker = false }) { Card(colors = CardDefaults.cardColors(containerColor = Color.White)) { Column(Modifier.padding(16.dp)) { Text("Select Color", fontWeight = FontWeight.Bold, color = Color.Black); Spacer(Modifier.height(12.dp)); LazyVerticalGrid(columns = GridCells.Adaptive(40.dp), modifier = Modifier.height(200.dp)) { items(MegaPalette.size) { i -> Box(modifier = Modifier.size(40.dp).padding(4.dp).clip(CircleShape).background(MegaPalette[i]).clickable { onUpdate(config.copy(colorArgb = MegaPalette[i].toArgb())); showColorPicker = false }) } } } } } }
     if (showIconPicker) { Dialog(onDismissRequest = { showIconPicker = false }) { Card(colors = CardDefaults.cardColors(containerColor = Color.White)) { Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceEvenly) { AvailableIcons.forEach { resId -> IconButton(onClick = { onUpdate(config.copy(iconResId = resId)); showIconPicker = false }) { Icon(painter = painterResource(resId), contentDescription = null, tint = Color.Black) } } } } } }
 }
