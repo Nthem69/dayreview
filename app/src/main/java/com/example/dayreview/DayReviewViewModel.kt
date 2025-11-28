@@ -10,6 +10,7 @@ import com.example.dayreview.data.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.YearMonth
 import kotlin.math.max
 import kotlin.random.Random
 
@@ -41,7 +42,18 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    // --- DATE & NAVIGATION ---
+    
     fun setDate(date: LocalDate) { _selectedDate.value = date }
+    
+    // For Month Picker Bottom Sheet
+    fun setYearMonth(ym: YearMonth) {
+        val current = _selectedDate.value
+        val newDate = current.withYear(ym.year).withMonth(ym.monthValue).withDayOfMonth(1)
+        setDate(newDate)
+    }
+
+    // For Arrows/Swipe (if needed)
     fun changeMonth(newMonthValue: Int) {
         val today = LocalDate.now()
         val currentSelected = _selectedDate.value
@@ -49,20 +61,34 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         else setDate(currentSelected.withMonth(newMonthValue).withDayOfMonth(1))
     }
 
-    fun addTask(title: String, time: String?) { viewModelScope.launch { taskDao.insertTask(TaskEntity(title = title, isDone = false, date = _selectedDate.value.toString(), time = time)) } }
-    fun toggleTask(task: TaskEntity) { viewModelScope.launch { taskDao.updateTask(task.copy(isDone = !task.isDone)) } }
+    // --- TASKS ---
+
+    fun addTask(title: String, time: String?) { 
+        viewModelScope.launch { taskDao.insertTask(TaskEntity(title = title, isDone = false, date = _selectedDate.value.toString(), time = time)) } 
+    }
     
-    // THIS IS THE MISSING FUNCTION
+    fun toggleTask(task: TaskEntity) { 
+        viewModelScope.launch { taskDao.updateTask(task.copy(isDone = !task.isDone)) } 
+    }
+    
+    // Fixed: Handles both Title and Time updates
     fun updateTaskDetails(task: TaskEntity, newTitle: String, newTime: String?) { 
         viewModelScope.launch { taskDao.updateTask(task.copy(title = newTitle, time = newTime)) } 
     }
     
-    // Kept for backward compatibility if needed, but updateTaskDetails handles both
-    fun updateTaskTitle(task: TaskEntity, newTitle: String) { viewModelScope.launch { taskDao.updateTask(task.copy(title = newTitle)) } }
+    // Helper for backward compatibility
+    fun updateTaskTitle(task: TaskEntity, newTitle: String) {
+        viewModelScope.launch { taskDao.updateTask(task.copy(title = newTitle)) }
+    }
     
-    fun deleteTask(task: TaskEntity) { viewModelScope.launch { taskDao.deleteTask(task) } }
+    fun deleteTask(task: TaskEntity) { 
+        viewModelScope.launch { taskDao.deleteTask(task) } 
+    }
+
+    // --- HABITS ---
 
     fun addHabit(title: String, color: Int) { 
+        // Start with empty history
         val history = List(30) { false } 
         viewModelScope.launch { habitDao.insertHabit(HabitEntity(title = title, colorArgb = color, history = history)) } 
     }
@@ -71,17 +97,32 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             val habit = habits.value.find { it.id == habitId } ?: return@launch
             val newStatus = !habit.isDoneToday
+            
+            // Visual Heatmap Update (Day Index Logic)
             val todayIdx = LocalDate.now().dayOfMonth - 1
             val newHistory = habit.history.toMutableList()
             if (todayIdx in newHistory.indices) newHistory[todayIdx] = newStatus
+            
+            // Streak Logic (Increment/Decrement)
             val newStreak = if (newStatus) habit.streak + 1 else max(0, habit.streak - 1)
+            
             habitDao.updateHabit(habit.copy(isDoneToday = newStatus, history = newHistory, streak = newStreak))
         }
     }
+    
     fun updateHabit(habit: HabitEntity) { viewModelScope.launch { habitDao.updateHabit(habit) } }
+    
     fun deleteHabit(habit: HabitEntity) { viewModelScope.launch { habitDao.deleteHabit(habit) } }
-    fun setRating(moodId: Int) { viewModelScope.launch { ratingDao.setRating(RatingEntity(date = LocalDate.now().toString(), moodId = moodId)) } }
-    fun updateMoodConfig(config: MoodConfigEntity) { viewModelScope.launch { moodDao.updateConfig(config) } }
+
+    // --- RATINGS & CONFIG ---
+
+    fun setRating(moodId: Int) { 
+        viewModelScope.launch { ratingDao.setRating(RatingEntity(date = LocalDate.now().toString(), moodId = moodId)) } 
+    }
+    
+    fun updateMoodConfig(config: MoodConfigEntity) { 
+        viewModelScope.launch { moodDao.updateConfig(config) } 
+    }
 }
 
 class DayReviewViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
