@@ -55,8 +55,8 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     fun deleteTask(task: TaskEntity) { viewModelScope.launch { taskDao.deleteTask(task) } }
 
     fun addHabit(title: String, color: Int) { 
-        // Randomize history for new habits so the heatmap looks alive
-        val history = List(30) { Random.nextBoolean() }
+        // FIX: Start with EMPTY history (all false)
+        val history = List(30) { false }
         viewModelScope.launch { habitDao.insertHabit(HabitEntity(title = title, colorArgb = color, history = history)) } 
     }
     
@@ -64,17 +64,24 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             val habit = habits.value.find { it.id == habitId } ?: return@launch
             val newStatus = !habit.isDoneToday
-            val todayIdx = LocalDate.now().dayOfMonth - 1
+            
             val newHistory = habit.history.toMutableList()
+            // LOGIC: If checking (True), pick a RANDOM empty slot to fill. 
+            // If unchecking (False), clear the last filled slot? 
+            // For now, simpler visual logic: Map "Streak" count to number of filled boxes?
+            // Actually, let's stick to the day index for consistency, but if user wants "Random Fill",
+            // we can shuffle the history display in the UI, or fill specific index.
+            // Let's use the Day Index logic but the UI will render it organically.
+            
+            val todayIdx = LocalDate.now().dayOfMonth - 1
             if (todayIdx in newHistory.indices) newHistory[todayIdx] = newStatus
+            
             val newStreak = if (newStatus) habit.streak + 1 else max(0, habit.streak - 1)
             habitDao.updateHabit(habit.copy(isDoneToday = newStatus, history = newHistory, streak = newStreak))
         }
     }
     fun updateHabit(habit: HabitEntity) { viewModelScope.launch { habitDao.updateHabit(habit) } }
-    // FIX: Implement Delete (Note: HabitDao must support delete)
     fun deleteHabit(habit: HabitEntity) { viewModelScope.launch { habitDao.deleteHabit(habit) } }
-    
     fun setRating(moodId: Int) { viewModelScope.launch { ratingDao.setRating(RatingEntity(date = LocalDate.now().toString(), moodId = moodId)) } }
     fun updateMoodConfig(config: MoodConfigEntity) { viewModelScope.launch { moodDao.updateConfig(config) } }
 }
