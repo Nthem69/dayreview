@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -61,6 +60,13 @@ import kotlin.random.Random
 
 // Global Constants
 val HabitColors = listOf(Color(0xFF4FB3FF), Color(0xFFFF6F3B), Color(0xFF4CAF50), Color(0xFFE91E63), Color(0xFF9C27B0))
+val MegaPalette = listOf(
+    0xFFF44336, 0xFFE91E63, 0xFF9C27B0, 0xFF673AB7, 0xFF3F51B5, 0xFF2196F3,
+    0xFF03A9F4, 0xFF00BCD4, 0xFF009688, 0xFF4CAF50, 0xFF8BC34A, 0xFFCDDC39,
+    0xFFFFEB3B, 0xFFFFC107, 0xFFFF9800, 0xFFFF5722, 0xFF795548, 0xFF9E9E9E,
+    0xFF607D8B, 0xFF000000
+).map { Color(it) }
+
 enum class AppTab { Plan, Habits, Tracker }
 
 @Composable
@@ -77,11 +83,9 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
     var currentTab by remember { mutableStateOf(AppTab.Plan) }
     var showSettings by remember { mutableStateOf(false) }
 
-    // Dialog States
     var showAddTaskDialog by remember { mutableStateOf(false) }
     var showAddHabitDialog by remember { mutableStateOf(false) }
     
-    // Edit States
     var taskToEdit by remember { mutableStateOf<TaskEntity?>(null) }
     var habitToEdit by remember { mutableStateOf<HabitEntity?>(null) }
     var habitToDelete by remember { mutableStateOf<HabitEntity?>(null) }
@@ -116,11 +120,9 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
             Spacer(modifier = Modifier.height(12.dp))
             TopHeader(selectedDate, { showSettings = true }) { newMonth -> viewModel.changeMonth(newMonth.value) }
             Spacer(modifier = Modifier.height(12.dp))
-            
             val ratingVisuals = ratingsMap.mapValues { entry -> moodConfigs.find { it.id == entry.value } }
             MonthCalendar(selectedDate, today, ratingVisuals) { viewModel.setDate(it) }
             Spacer(modifier = Modifier.height(12.dp))
-
             val isRated = ratingsMap.containsKey(today)
             val isTimeToShow = currentTime.hour >= 14
             AnimatedVisibility(visible = isToday && !isRated && isTimeToShow) {
@@ -133,26 +135,18 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
-
             TabSegmentControl(currentTab) { currentTab = it }
             Spacer(modifier = Modifier.height(12.dp))
-
             Crossfade(targetState = currentTab, label = "Tab") { tab ->
                 when (tab) {
                     AppTab.Plan -> PlanContent(
-                        tasks = tasks,
-                        ghostTasks = ghostTasks,
-                        isEditable = isEditable,
-                        onCheck = { viewModel.toggleTask(it) },
-                        onUncheck = { viewModel.toggleTask(it) },
-                        onDelete = { viewModel.deleteTask(it) },
-                        onEdit = { if(isEditable) taskToEdit = it }
+                        tasks = tasks, ghostTasks = ghostTasks, isEditable = isEditable,
+                        onCheck = { viewModel.toggleTask(it) }, onUncheck = { viewModel.toggleTask(it) },
+                        onDelete = { viewModel.deleteTask(it) }, onEdit = { if(isEditable) taskToEdit = it }
                     )
                     AppTab.Habits -> HabitsContent(
-                        habits = habits,
-                        onToggle = { viewModel.toggleHabit(it.id) },
-                        onDelete = { habitToDelete = it },
-                        onEdit = { habitToEdit = it }
+                        habits = habits, onToggle = { viewModel.toggleHabit(it.id) },
+                        onDelete = { habitToDelete = it }, onEdit = { habitToEdit = it }
                     )
                     AppTab.Tracker -> TrackerContent()
                 }
@@ -160,67 +154,15 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
         }
     }
     
-    // --- DIALOGS (Using New Custom Design) ---
-    
-    // 1. ADD TASK DIALOG
-    if (showAddTaskDialog) { 
-        CustomAddTaskDialog(
-            onDismiss = { showAddTaskDialog = false },
-            onAdd = { title, time -> viewModel.addTask(title, time); showAddTaskDialog = false }
-        )
-    }
-    
-    // 2. ADD HABIT DIALOG
-    if (showAddHabitDialog) { 
-        CustomAddHabitDialog(
-            onDismiss = { showAddHabitDialog = false },
-            onAdd = { title, color -> viewModel.addHabit(title, color.toArgb()); showAddHabitDialog = false }
-        )
-    }
-    
-    // 3. EDIT HABIT DIALOG (Reusing Custom Dialog Logic)
-    if (habitToEdit != null) {
-        CustomAddHabitDialog(
-            initialName = habitToEdit!!.title,
-            initialColor = Color(habitToEdit!!.colorArgb),
-            isEditMode = true,
-            onDismiss = { habitToEdit = null },
-            onAdd = { title, color -> 
-                viewModel.updateHabit(habitToEdit!!.copy(title = title, colorArgb = color.toArgb()))
-                habitToEdit = null 
-            }
-        )
-    }
-
-    // 4. DELETE CONFIRMATION
-    if (habitToDelete != null) {
-        AlertDialog(
-            onDismissRequest = { habitToDelete = null },
-            title = { Text("Delete Habit?", color = Color.Black) },
-            text = { Text("This will remove the habit and all its history.", color = Color.Gray) },
-            confirmButton = { Button(onClick = { viewModel.deleteHabit(habitToDelete!!); habitToDelete = null }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Delete", color = Color.White) } },
-            dismissButton = { TextButton(onClick = { habitToDelete = null }) { Text("Cancel", color = Color.Gray) } },
-            containerColor = Color.White
-        )
-    }
-    
-    // 5. EDIT TASK (Simple rename for now)
-    if (taskToEdit != null) { 
-        CustomAddTaskDialog(
-            initialName = taskToEdit!!.title,
-            initialTime = taskToEdit!!.time,
-            isEditMode = true,
-            onDismiss = { taskToEdit = null },
-            onAdd = { title, time -> 
-                viewModel.updateTaskTitle(taskToEdit!!, title) // Note: ViewModel needs update for time too
-                taskToEdit = null
-            }
-        )
-    }
+    if (showAddTaskDialog) { CustomAddTaskDialog(onDismiss = { showAddTaskDialog = false }, onAdd = { title, time -> viewModel.addTask(title, time); showAddTaskDialog = false }) }
+    if (showAddHabitDialog) { CustomAddHabitDialog(onDismiss = { showAddHabitDialog = false }, onAdd = { title, color -> viewModel.addHabit(title, color.toArgb()); showAddHabitDialog = false }) }
+    if (habitToDelete != null) { AlertDialog(onDismissRequest = { habitToDelete = null }, title = { Text("Delete Habit?", color = Color.Black) }, text = { Text("This will remove the habit and all its history.", color = Color.Gray) }, confirmButton = { Button(onClick = { viewModel.deleteHabit(habitToDelete!!); habitToDelete = null }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Delete", color = Color.White) } }, dismissButton = { TextButton(onClick = { habitToDelete = null }) { Text("Cancel", color = Color.Gray) } }, containerColor = Color.White) }
+    if (taskToEdit != null) { CustomAddTaskDialog(initialName = taskToEdit!!.title, initialTime = taskToEdit!!.time, isEditMode = true, onDismiss = { taskToEdit = null }, onAdd = { title, time -> viewModel.updateTaskTitle(taskToEdit!!, title); taskToEdit = null }) }
+    if (habitToEdit != null) { CustomAddHabitDialog(initialName = habitToEdit!!.title, initialColor = Color(habitToEdit!!.colorArgb), isEditMode = true, onDismiss = { habitToEdit = null }, onAdd = { title, color -> viewModel.updateHabit(habitToEdit!!.copy(title = title, colorArgb = color.toArgb())); habitToEdit = null }) }
 }
 
 // =====================================================================
-// NEW CUSTOM DIALOGS (Matching provided designs)
+// NEW SLEEK DIALOGS
 // =====================================================================
 
 @Composable
@@ -234,93 +176,63 @@ fun CustomAddTaskDialog(
     var name by remember { mutableStateOf(initialName) }
     var time by remember { mutableStateOf(initialTime) }
     val context = LocalContext.current
-    
-    val timePickerDialog = TimePickerDialog(
-        context,
-        { _, h, m -> 
-            val amPm = if (h < 12) "AM" else "PM"
-            val hourDisplay = if (h % 12 == 0) 12 else h % 12
-            time = String.format("%d:%02d %s", hourDisplay, m, amPm) 
-        },
-        12, 0, false
-    )
+    val timePickerDialog = TimePickerDialog(context, { _, h, m -> 
+        val amPm = if (h < 12) "AM" else "PM"
+        val hourDisplay = if (h % 12 == 0) 12 else h % 12
+        time = String.format("%d:%02d %s", hourDisplay, m, amPm) 
+    }, 12, 0, false)
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = Color.White,
-            modifier = Modifier.fillMaxWidth().padding(24.dp)
-        ) {
-            Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(if(isEditMode) "Edit Task" else "Add Task", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(24.dp)) {
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) { // Tighter spacing
+                Text(if(isEditMode) "Edit Task" else "Add Task", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
 
-                // Name Input
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Name", fontWeight = FontWeight.SemiBold, color = Color.Black)
+                // Name
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Name", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Black)
                     OutlinedTextField(
                         value = name, onValueChange = { name = it },
-                        placeholder = { Text("Enter task name...", color = Color(0xFF9E9E9E)) },
+                        placeholder = { Text("Enter task name...", color = Color(0xFF9E9E9E), fontSize = 14.sp) },
                         singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFFE0E0E0),
-                            unfocusedBorderColor = Color(0xFFE0E0E0),
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White,
-                            focusedTextColor = Color.Black,
-                            unfocusedTextColor = Color.Black
+                            focusedBorderColor = Color(0xFFE0E0E0), unfocusedBorderColor = Color(0xFFE0E0E0),
+                            focusedContainerColor = Color.White, unfocusedContainerColor = Color.White,
+                            focusedTextColor = Color.Black, unfocusedTextColor = Color.Black
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
 
-                // Time Input
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Time", fontWeight = FontWeight.SemiBold, color = Color.Black)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = time ?: "",
-                            onValueChange = {},
-                            enabled = false, // Click handled by row/button
-                            placeholder = { Text("Select time", color = Color(0xFF9E9E9E)) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                disabledBorderColor = Color(0xFFE0E0E0),
-                                disabledTextColor = Color.Black,
-                                disabledContainerColor = Color.White,
-                                disabledPlaceholderColor = Color(0xFF9E9E9E)
-                            ),
-                            modifier = Modifier.weight(1f).clickable { timePickerDialog.show() }
-                        )
-                        // Bell Button
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE0E0E0)),
-                            color = Color.White,
-                            modifier = Modifier.size(56.dp).clickable { timePickerDialog.show() }
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Notifications, "Time", tint = Color.Black)
-                            }
-                        }
-                    }
+                // Time (Full Width, No Bell)
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Time", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Black)
+                    OutlinedTextField(
+                        value = time ?: "", onValueChange = {},
+                        enabled = false,
+                        placeholder = { Text("Select time", color = Color(0xFF9E9E9E), fontSize = 14.sp) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledBorderColor = Color(0xFFE0E0E0), disabledTextColor = Color.Black,
+                            disabledContainerColor = Color.White, disabledPlaceholderColor = Color(0xFF9E9E9E)
+                        ),
+                        modifier = Modifier.fillMaxWidth().clickable { timePickerDialog.show() }
+                    )
                 }
 
                 // Buttons
-                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                     TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
                         Text("Cancel", color = Color.Black, fontWeight = FontWeight.SemiBold)
                     }
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     Button(
                         onClick = { if (name.isNotBlank()) onAdd(name, time) },
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Black, contentColor = Color.White),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Text(if(isEditMode) "Save" else "Add")
-                    }
+                    ) { Text(if(isEditMode) "Save" else "Add") }
                 }
             }
         }
@@ -337,57 +249,45 @@ fun CustomAddHabitDialog(
 ) {
     var name by remember { mutableStateOf(initialName) }
     var selectedColor by remember { mutableStateOf(initialColor ?: HabitColors[0]) }
+    var showColorPicker by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = Color.White,
-            modifier = Modifier.fillMaxWidth().padding(24.dp)
-        ) {
-            Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(if(isEditMode) "Edit Habit" else "Add Habit", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(24.dp)) {
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(if(isEditMode) "Edit Habit" else "Add Habit", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
 
-                // Name Input
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Name", fontWeight = FontWeight.SemiBold, color = Color.Black)
+                // Name
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Name", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Black)
                     OutlinedTextField(
                         value = name, onValueChange = { name = it },
-                        placeholder = { Text("Enter habit name...", color = Color(0xFF9E9E9E)) },
+                        placeholder = { Text("Enter habit name...", color = Color(0xFF9E9E9E), fontSize = 14.sp) },
                         singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFFE0E0E0),
-                            unfocusedBorderColor = Color(0xFFE0E0E0),
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White,
-                            focusedTextColor = Color.Black,
-                            unfocusedTextColor = Color.Black
+                            focusedBorderColor = Color(0xFFE0E0E0), unfocusedBorderColor = Color(0xFFE0E0E0),
+                            focusedContainerColor = Color.White, unfocusedContainerColor = Color.White,
+                            focusedTextColor = Color.Black, unfocusedTextColor = Color.Black
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
 
-                // Color Input
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Color", fontWeight = FontWeight.SemiBold, color = Color.Black)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Color (With + Button)
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Color", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Black)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         HabitColors.forEach { color ->
                             val isSelected = selectedColor == color
                             Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(color)
+                                modifier = Modifier.size(32.dp).clip(CircleShape).background(color)
                                     .then(if (isSelected) Modifier.border(2.dp, Color.Black, CircleShape) else Modifier)
                                     .clickable { selectedColor = color }
                             )
                         }
-                        // Plus Icon (Visual only for now)
+                        // Plus Button -> Opens Mega Palette
                         Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .border(1.dp, Color(0xFFE0E0E0), CircleShape)
-                                .clickable { }, // Future: Open full picker
+                            modifier = Modifier.size(32.dp).border(1.dp, Color(0xFFE0E0E0), CircleShape).clickable { showColorPicker = true },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(Icons.Default.Add, "More", tint = Color.Black, modifier = Modifier.size(16.dp))
@@ -396,18 +296,34 @@ fun CustomAddHabitDialog(
                 }
 
                 // Buttons
-                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                     TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
                         Text("Cancel", color = Color.Black, fontWeight = FontWeight.SemiBold)
                     }
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     Button(
                         onClick = { if (name.isNotBlank()) onAdd(name, selectedColor) },
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Black, contentColor = Color.White),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Text(if(isEditMode) "Save" else "Add")
+                    ) { Text(if(isEditMode) "Save" else "Add") }
+                }
+            }
+        }
+    }
+    
+    // MEGA PALETTE PICKER (Triggered by +)
+    if (showColorPicker) {
+        Dialog(onDismissRequest = { showColorPicker = false }) {
+            Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Select Color", fontWeight = FontWeight.Bold, color = Color.Black)
+                    Spacer(Modifier.height(12.dp))
+                    LazyVerticalGrid(columns = GridCells.Adaptive(40.dp), modifier = Modifier.height(200.dp)) {
+                        items(MegaPalette.size) { i ->
+                            Box(modifier = Modifier.size(40.dp).padding(4.dp).clip(CircleShape).background(MegaPalette[i])
+                                .clickable { selectedColor = MegaPalette[i]; showColorPicker = false })
+                        }
                     }
                 }
             }
@@ -415,11 +331,13 @@ fun CustomAddHabitDialog(
     }
 }
 
-// ... EXISTING HELPERS (Unchanged) ...
+// ... Reused UI Components ...
 @Composable
 fun TopHeader(currentDate: LocalDate, onSettingsClick: () -> Unit, onMonthSelected: (Month) -> Unit) { var menuExpanded by remember { mutableStateOf(false) }; Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = onSettingsClick, modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFF5F5F5))) { Icon(Icons.Default.Settings, "Settings", tint = Color.Black) }; Box { Surface(shape = RoundedCornerShape(50), color = Color(0xFFF5F5F5), modifier = Modifier.height(40.dp).clickable { menuExpanded = true }) { Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) { Text(currentDate.month.getDisplayName(TextStyle.FULL, Locale.getDefault()), fontWeight = FontWeight.SemiBold, color = Color.Black); Spacer(modifier = Modifier.width(4.dp)); Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.Black) } }; DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }, modifier = Modifier.background(Color.White)) { Month.values().forEach { month -> DropdownMenuItem(text = { Text(month.getDisplayName(TextStyle.FULL, Locale.getDefault()), color = Color.Black) }, onClick = { onMonthSelected(month); menuExpanded = false }) } } } } }
 @Composable
 fun MoodFaceButton(config: MoodConfigEntity, onClick: () -> Unit) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(config.colorArgb)).clickable { onClick() }) { Icon(painter = painterResource(config.iconResId), contentDescription = config.label, tint = Color.White, modifier = Modifier.size(24.dp)) }; Spacer(modifier = Modifier.height(4.dp)); Text(text = config.label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(config.colorArgb), textAlign = TextAlign.Center) } }
+@Composable
+fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<LocalDate, MoodConfigEntity?>, onDateSelected: (LocalDate) -> Unit) { Column(modifier = Modifier.fillMaxWidth().height(260.dp).background(Color(0xFFF8F9FA), RoundedCornerShape(24.dp)).padding(12.dp)) { Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { listOf("S", "M", "T", "W", "T", "F", "S").forEach { day -> Text(day, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.weight(1f), textAlign = TextAlign.Center) } }; Spacer(modifier = Modifier.height(4.dp)); val daysInMonth = displayedDate.lengthOfMonth(); val startOffset = displayedDate.withDayOfMonth(1).dayOfWeek.value % 7; LazyVerticalGrid(columns = GridCells.Fixed(7), modifier = Modifier.fillMaxSize(), userScrollEnabled = false) { items(42) { index -> val dayNum = index - startOffset + 1; if (index < startOffset || dayNum > daysInMonth) { Box(modifier = Modifier.size(30.dp)) } else { val cellDate = displayedDate.withDayOfMonth(dayNum); val rating = ratedDays[cellDate]; val isSelected = cellDate == displayedDate; Box(contentAlignment = Alignment.Center, modifier = Modifier.size(32.dp).clip(rating?.let { CircleShape } ?: CircleShape).background(when { rating != null -> Color(rating.colorArgb); isSelected -> Color.Black; else -> Color.Transparent }).clickable { onDateSelected(cellDate) }) { Text("$dayNum", fontSize = 12.sp, fontWeight = if (cellDate==today) FontWeight.ExtraBold else FontWeight.Medium, color = if (rating != null || isSelected) Color.White else Color.Black) } } } } } }
 @Composable
 fun TabSegmentControl(selected: AppTab, onSelect: (AppTab) -> Unit) { Row(modifier = Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF0F0F0)).padding(4.dp), horizontalArrangement = Arrangement.SpaceBetween) { AppTab.values().forEach { tab -> val isSelected = selected == tab; Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(8.dp)).background(if (isSelected) Color.White else Color.Transparent).clickable { onSelect(tab) }) { Text(tab.name, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.Black else Color.Gray, fontSize = 14.sp) } } } }
 @Composable
@@ -430,5 +348,4 @@ fun PlanContent(tasks: List<TaskEntity>, ghostTasks: List<TaskEntity>, isEditabl
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HabitsContent(habits: List<HabitEntity>, onToggle: (HabitEntity) -> Unit, onDelete: (HabitEntity) -> Unit, onEdit: (HabitEntity) -> Unit) { val haptic = LocalHapticFeedback.current; if (habits.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No habits yet.", color = Color.LightGray) } }; LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 80.dp)) { items(habits.size) { i -> val habit = habits[i]; val color = Color(habit.colorArgb); val totalFilled = habit.history.count { it }; val random = Random(habit.id); val displayPattern = List(30) { false }.toMutableList(); val indices = (0 until 30).toMutableList(); repeat(totalFilled.coerceAtMost(30)) { if (indices.isNotEmpty()) { val randIndex = indices.removeAt(random.nextInt(indices.size)); displayPattern[randIndex] = true } }; val dismissState = rememberSwipeToDismissBoxState(confirmValueChange = { if (it == SwipeToDismissBoxValue.EndToStart) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onDelete(habit); false } else if (it == SwipeToDismissBoxValue.StartToEnd) { onEdit(habit); false }; else false }); SwipeToDismissBox(state = dismissState, backgroundContent = { val bg = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) Color.Red else Color.Gray; val align = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) Alignment.CenterEnd else Alignment.CenterStart; val icon = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) Icons.Default.Delete else Icons.Default.Edit; Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(bg).padding(horizontal = 20.dp), contentAlignment = align) { Icon(icon, null, tint = Color.White) } }) { Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, Color(0xFFF0F0F0), RoundedCornerShape(16.dp)).combinedClickable(onClick = { if (!habit.isDoneToday) onToggle(habit) }, onLongClick = { if (habit.isDoneToday) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onToggle(habit) } }).padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Column(modifier = Modifier.weight(1f)) { Text(habit.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color.Black); Spacer(modifier = Modifier.height(10.dp)); Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { repeat(5) { r -> Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { repeat(7) { c -> val isVisible = !((r == 0 && c < 2) || (r == 4 && c > 4)); if (isVisible) { val linearIdx = (r * 7 + c) - 2; val isFilled = if(linearIdx in displayPattern.indices) displayPattern[linearIdx] else false; Box(modifier = Modifier.width(12.dp).height(6.dp).clip(RoundedCornerShape(2.dp)).background(if (isFilled) color else Color(0xFFF0F0F0))) } else { Box(modifier = Modifier.width(12.dp).height(6.dp).background(Color.Transparent)) } } } } } }; Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) { Text("🔥 ${habit.streak}", fontSize = 12.sp, color = Color.Gray); Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(if (habit.isDoneToday) color else Color(0xFFF0F0F0)).clickable { onToggle(habit) }, contentAlignment = Alignment.Center) { if (habit.isDoneToday) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(18.dp)) } } } } } } }
-@Composable
-fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<LocalDate, MoodConfigEntity?>, onDateSelected: (LocalDate) -> Unit) { Column(modifier = Modifier.fillMaxWidth().height(260.dp).background(Color(0xFFF8F9FA), RoundedCornerShape(24.dp)).padding(12.dp)) { Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { listOf("S", "M", "T", "W", "T", "F", "S").forEach { day -> Text(day, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.weight(1f), textAlign = TextAlign.Center) } }; Spacer(modifier = Modifier.height(4.dp)); val daysInMonth = displayedDate.lengthOfMonth(); val startOffset = displayedDate.withDayOfMonth(1).dayOfWeek.value % 7; LazyVerticalGrid(columns = GridCells.Fixed(7), modifier = Modifier.fillMaxSize(), userScrollEnabled = false) { items(42) { index -> val dayNum = index - startOffset + 1; if (index < startOffset || dayNum > daysInMonth) { Box(modifier = Modifier.size(30.dp)) } else { val cellDate = displayedDate.withDayOfMonth(dayNum); val rating = ratedDays[cellDate]; val isSelected = cellDate == displayedDate; Box(contentAlignment = Alignment.Center, modifier = Modifier.size(32.dp).clip(rating?.let { CircleShape } ?: CircleShape).background(when { rating != null -> Color(rating.colorArgb); isSelected -> Color.Black; else -> Color.Transparent }).clickable { onDateSelected(cellDate) }) { Text("$dayNum", fontSize = 12.sp, fontWeight = if (cellDate==today) FontWeight.ExtraBold else FontWeight.Medium, color = if (rating != null || isSelected) Color.White else Color.Black) } } } } } }
+fun Modifier.alpha(value: Float) = this.then(Modifier.background(Color.Transparent.copy(alpha = 1f - value)))
