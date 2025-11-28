@@ -10,7 +10,6 @@ import com.example.dayreview.data.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import java.time.YearMonth
 import kotlin.math.max
 import kotlin.random.Random
 
@@ -43,18 +42,24 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun setDate(date: LocalDate) { _selectedDate.value = date }
-    
-    // NEW: Handle YearMonth selection from the new Picker
-    fun setYearMonth(ym: YearMonth) {
-        val current = _selectedDate.value
-        // Keep the day (e.g. 1st) but update Year and Month
-        val newDate = current.withYear(ym.year).withMonth(ym.monthValue).withDayOfMonth(1)
-        setDate(newDate)
+    fun changeMonth(newMonthValue: Int) {
+        val today = LocalDate.now()
+        val currentSelected = _selectedDate.value
+        if (newMonthValue == today.monthValue && currentSelected.year == today.year) setDate(today) 
+        else setDate(currentSelected.withMonth(newMonthValue).withDayOfMonth(1))
     }
 
     fun addTask(title: String, time: String?) { viewModelScope.launch { taskDao.insertTask(TaskEntity(title = title, isDone = false, date = _selectedDate.value.toString(), time = time)) } }
     fun toggleTask(task: TaskEntity) { viewModelScope.launch { taskDao.updateTask(task.copy(isDone = !task.isDone)) } }
+    
+    // THIS IS THE MISSING FUNCTION
+    fun updateTaskDetails(task: TaskEntity, newTitle: String, newTime: String?) { 
+        viewModelScope.launch { taskDao.updateTask(task.copy(title = newTitle, time = newTime)) } 
+    }
+    
+    // Kept for backward compatibility if needed, but updateTaskDetails handles both
     fun updateTaskTitle(task: TaskEntity, newTitle: String) { viewModelScope.launch { taskDao.updateTask(task.copy(title = newTitle)) } }
+    
     fun deleteTask(task: TaskEntity) { viewModelScope.launch { taskDao.deleteTask(task) } }
 
     fun addHabit(title: String, color: Int) { 
