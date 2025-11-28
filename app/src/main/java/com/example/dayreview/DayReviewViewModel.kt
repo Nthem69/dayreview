@@ -51,12 +51,16 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun addTask(title: String, time: String?) { viewModelScope.launch { taskDao.insertTask(TaskEntity(title = title, isDone = false, date = _selectedDate.value.toString(), time = time)) } }
     fun toggleTask(task: TaskEntity) { viewModelScope.launch { taskDao.updateTask(task.copy(isDone = !task.isDone)) } }
-    fun updateTaskTitle(task: TaskEntity, newTitle: String) { viewModelScope.launch { taskDao.updateTask(task.copy(title = newTitle)) } }
+    
+    // FIX: Now updates Time as well
+    fun updateTaskDetails(task: TaskEntity, newTitle: String, newTime: String?) { 
+        viewModelScope.launch { taskDao.updateTask(task.copy(title = newTitle, time = newTime)) } 
+    }
+    
     fun deleteTask(task: TaskEntity) { viewModelScope.launch { taskDao.deleteTask(task) } }
 
     fun addHabit(title: String, color: Int) { 
-        // FIX: Start with EMPTY history (all false)
-        val history = List(30) { false }
+        val history = List(30) { false } // Empty history
         viewModelScope.launch { habitDao.insertHabit(HabitEntity(title = title, colorArgb = color, history = history)) } 
     }
     
@@ -64,18 +68,9 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             val habit = habits.value.find { it.id == habitId } ?: return@launch
             val newStatus = !habit.isDoneToday
-            
-            val newHistory = habit.history.toMutableList()
-            // LOGIC: If checking (True), pick a RANDOM empty slot to fill. 
-            // If unchecking (False), clear the last filled slot? 
-            // For now, simpler visual logic: Map "Streak" count to number of filled boxes?
-            // Actually, let's stick to the day index for consistency, but if user wants "Random Fill",
-            // we can shuffle the history display in the UI, or fill specific index.
-            // Let's use the Day Index logic but the UI will render it organically.
-            
             val todayIdx = LocalDate.now().dayOfMonth - 1
+            val newHistory = habit.history.toMutableList()
             if (todayIdx in newHistory.indices) newHistory[todayIdx] = newStatus
-            
             val newStreak = if (newStatus) habit.streak + 1 else max(0, habit.streak - 1)
             habitDao.updateHabit(habit.copy(isDoneToday = newStatus, history = newHistory, streak = newStreak))
         }
