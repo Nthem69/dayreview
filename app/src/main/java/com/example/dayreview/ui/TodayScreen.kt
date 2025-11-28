@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -29,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -110,11 +112,9 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
             Spacer(modifier = Modifier.height(12.dp))
             TopHeader(selectedDate, { showSettings = true }) { newMonth -> viewModel.changeMonth(newMonth.value) }
             Spacer(modifier = Modifier.height(12.dp))
-            
             val ratingVisuals = ratingsMap.mapValues { entry -> moodConfigs.find { it.id == entry.value } }
             MonthCalendar(selectedDate, today, ratingVisuals) { viewModel.setDate(it) }
             Spacer(modifier = Modifier.height(12.dp))
-
             val isRated = ratingsMap.containsKey(today)
             val isTimeToShow = currentTime.hour >= 14
             AnimatedVisibility(visible = isToday && !isRated && isTimeToShow) {
@@ -127,10 +127,8 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
-
             TabSegmentControl(currentTab) { currentTab = it }
             Spacer(modifier = Modifier.height(12.dp))
-
             Crossfade(targetState = currentTab, label = "Tab") { tab ->
                 when (tab) {
                     AppTab.Plan -> PlanContent(
@@ -148,23 +146,32 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
         }
     }
     
+    if (habitToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { habitToDelete = null },
+            title = { Text("Delete Habit?", color = Color.Black) },
+            text = { Text("This will remove the habit and all its history.", color = Color.Gray) },
+            confirmButton = { Button(onClick = { viewModel.deleteHabit(habitToDelete!!); habitToDelete = null }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Delete", color = Color.White) } },
+            dismissButton = { TextButton(onClick = { habitToDelete = null }) { Text("Cancel", color = Color.Gray) } },
+            containerColor = Color.White
+        )
+    }
     if (showAddTaskDialog) { CustomAddTaskDialog(onDismiss = { showAddTaskDialog = false }, onAdd = { title, time -> viewModel.addTask(title, time); showAddTaskDialog = false }) }
     if (showAddHabitDialog) { CustomAddHabitDialog(onDismiss = { showAddHabitDialog = false }, onAdd = { title, color -> viewModel.addHabit(title, color.toArgb()); showAddHabitDialog = false }) }
-    if (habitToDelete != null) { AlertDialog(onDismissRequest = { habitToDelete = null }, title = { Text("Delete Habit?", color = Color.Black) }, text = { Text("This will remove the habit and all its history.", color = Color.Gray) }, confirmButton = { Button(onClick = { viewModel.deleteHabit(habitToDelete!!); habitToDelete = null }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Delete", color = Color.White) } }, dismissButton = { TextButton(onClick = { habitToDelete = null }) { Text("Cancel", color = Color.Gray) } }, containerColor = Color.White) }
     if (taskToEdit != null) { CustomAddTaskDialog(initialName = taskToEdit!!.title, initialTime = taskToEdit!!.time, isEditMode = true, onDismiss = { taskToEdit = null }, onAdd = { title, time -> viewModel.updateTaskDetails(taskToEdit!!, title, time); taskToEdit = null }) }
     if (habitToEdit != null) { CustomAddHabitDialog(initialName = habitToEdit!!.title, initialColor = Color(habitToEdit!!.colorArgb), isEditMode = true, onDismiss = { habitToEdit = null }, onAdd = { title, color -> viewModel.updateHabit(habitToEdit!!.copy(title = title, colorArgb = color.toArgb())); habitToEdit = null }) }
 }
 
-// --- FIXED CALENDAR LAYOUT (6-Row Template) ---
+// --- FIXED CALENDAR LAYOUT (Compact Row Height) ---
 @Composable
 fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<LocalDate, MoodConfigEntity?>, onDateSelected: (LocalDate) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color(0xFFF8F9FA), RoundedCornerShape(24.dp))
-            .padding(16.dp)
+            .padding(vertical = 16.dp, horizontal = 24.dp) // More horizontal padding to center
     ) {
-        // 1. Header Row (S M T W T F S)
+        // 1. Header
         Row(modifier = Modifier.fillMaxWidth()) {
             listOf("S", "M", "T", "W", "T", "F", "S").forEach { day ->
                 Text(
@@ -177,22 +184,23 @@ fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<Loc
                 )
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp)) // Breathing room after header
         
         val daysInMonth = displayedDate.lengthOfMonth()
         val startOffset = displayedDate.withDayOfMonth(1).dayOfWeek.value % 7 
         
-        // 2. The 6-Row Grid Loop
-        // We use 'repeat(6)' to FORCE 6 rows, keeping height uniform for all months.
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) { // Tighter row spacing
+        // 2. The 6-Row Grid Loop with FIXED HEIGHT ROWS
+        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
             repeat(6) { weekIndex ->
-                Row(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(42.dp), // FIXED HEIGHT PER ROW
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     repeat(7) { dayIndex ->
                         val totalIndex = weekIndex * 7 + dayIndex
                         val dayNum = totalIndex - startOffset + 1
                         
-                        // Each cell gets weight(1f) to ensure perfect alignment with header
-                        Box(modifier = Modifier.weight(1f).aspectRatio(1f), contentAlignment = Alignment.Center) {
+                        Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                             if (totalIndex >= startOffset && dayNum <= daysInMonth) {
                                 val cellDate = displayedDate.withDayOfMonth(dayNum)
                                 val rating = ratedDays[cellDate]
@@ -201,8 +209,8 @@ fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<Loc
                                 Box(
                                     contentAlignment = Alignment.Center,
                                     modifier = Modifier
-                                        .fillMaxSize(0.9f) // Slight padding so circles don't touch
-                                        .clip(CircleShape)
+                                        .size(34.dp) // Fixed Circle Size
+                                        .clip(rating?.let { CircleShape } ?: CircleShape)
                                         .background(when { 
                                             rating != null -> Color(rating.colorArgb)
                                             isSelected -> Color.Black
@@ -212,7 +220,7 @@ fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<Loc
                                 ) {
                                     Text(
                                         text = "$dayNum", 
-                                        fontSize = 12.sp, 
+                                        fontSize = 13.sp, 
                                         fontWeight = if (cellDate == today) FontWeight.ExtraBold else FontWeight.Medium,
                                         color = if (rating != null || isSelected) Color.White else Color.Black
                                     )
