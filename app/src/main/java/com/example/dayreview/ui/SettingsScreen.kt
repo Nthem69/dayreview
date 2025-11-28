@@ -16,7 +16,6 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,13 +32,7 @@ import androidx.compose.ui.window.Dialog
 import com.example.dayreview.DayReviewViewModel
 import com.example.dayreview.data.MoodConfigEntity
 import com.example.dayreview.R
-
-val MegaPalette = listOf(
-    0xFFF44336, 0xFFE91E63, 0xFF9C27B0, 0xFF673AB7, 0xFF3F51B5, 0xFF2196F3,
-    0xFF03A9F4, 0xFF00BCD4, 0xFF009688, 0xFF4CAF50, 0xFF8BC34A, 0xFFCDDC39,
-    0xFFFFEB3B, 0xFFFFC107, 0xFFFF9800, 0xFFFF5722, 0xFF795548, 0xFF9E9E9E,
-    0xFF607D8B, 0xFF000000
-).map { Color(it) }
+import com.example.dayreview.ui.theme.MegaPalette // Import instead of define
 
 val AvailableIcons = listOf(R.drawable.ic_mood_1, R.drawable.ic_mood_2, R.drawable.ic_mood_3, R.drawable.ic_mood_4, R.drawable.ic_mood_5)
 
@@ -57,7 +50,6 @@ fun SettingsScreen(viewModel: DayReviewViewModel, onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = { Text("Settings", fontWeight = FontWeight.Bold, color = Color.Black) },
-                // FIX: Explicit Black Tint for Back Arrow
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.Black) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
@@ -67,14 +59,11 @@ fun SettingsScreen(viewModel: DayReviewViewModel, onBack: () -> Unit) {
         Column(modifier = Modifier.padding(pad).padding(16.dp)) {
             Text("General", color = Color.Gray, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
-            
             SettingsItem(Icons.Default.Palette, "Customize Moods", Color(0xFF4CAF50)) { showMoodCustomization = true }
             SettingsItem(Icons.Default.Notifications, "Notifications", Color(0xFFFF9800)) { /* Todo */ }
-            
             Spacer(modifier = Modifier.height(24.dp))
             Text("Account", color = Color.Gray, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
-            
             SettingsItem(Icons.Default.Person, "Profile", Color(0xFF2196F3)) { /* Todo */ }
         }
     }
@@ -82,16 +71,8 @@ fun SettingsScreen(viewModel: DayReviewViewModel, onBack: () -> Unit) {
 
 @Composable
 fun SettingsItem(icon: ImageVector, title: String, iconColor: Color, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().height(56.dp).clickable { onClick() },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(iconColor.copy(alpha = 0.2f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, null, tint = iconColor, modifier = Modifier.size(20.dp))
-        }
+    Row(modifier = Modifier.fillMaxWidth().height(56.dp).clickable { onClick() }, verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(iconColor.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) { Icon(icon, null, tint = iconColor, modifier = Modifier.size(20.dp)) }
         Spacer(modifier = Modifier.width(16.dp))
         Text(title, style = MaterialTheme.typography.bodyLarge, color = Color.Black, modifier = Modifier.weight(1f))
         Icon(Icons.Default.ChevronRight, null, tint = Color.Gray)
@@ -103,13 +84,7 @@ fun SettingsItem(icon: ImageVector, title: String, iconColor: Color, onClick: ()
 fun MoodCustomizationScreen(viewModel: DayReviewViewModel, onBack: () -> Unit) {
     val configs by viewModel.moodConfigs.collectAsState()
     Scaffold(
-        topBar = { 
-            TopAppBar(
-                title = { Text("Customize Moods", color = Color.Black) }, 
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.Black) } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
-            ) 
-        },
+        topBar = { TopAppBar(title = { Text("Customize Moods", color = Color.Black) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.Black) } }, colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)) },
         containerColor = Color.White
     ) { pad ->
         LazyColumn(modifier = Modifier.padding(pad).padding(16.dp)) {
@@ -128,14 +103,9 @@ fun MoodConfigRow(config: MoodConfigEntity, onUpdate: (MoodConfigEntity) -> Unit
 
     Column(modifier = Modifier.padding(vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(config.colorArgb)).clickable { showIconPicker = true }, contentAlignment = Alignment.Center) {
-                Icon(painter = painterResource(config.iconResId), contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
-            }
+            Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(config.colorArgb)).clickable { showIconPicker = true }, contentAlignment = Alignment.Center) { Icon(painter = painterResource(config.iconResId), contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp)) }
             Spacer(modifier = Modifier.width(12.dp))
-            OutlinedTextField(
-                value = config.label, onValueChange = { onUpdate(config.copy(label = it)) }, modifier = Modifier.weight(1f), singleLine = true, 
-                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.Black, unfocusedTextColor = Color.Black, focusedBorderColor = Color.Black, unfocusedBorderColor = Color.LightGray)
-            )
+            OutlinedTextField(value = config.label, onValueChange = { onUpdate(config.copy(label = it)) }, modifier = Modifier.weight(1f), singleLine = true, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color.Black, unfocusedBorderColor = Color.LightGray, focusedTextColor = Color.Black, unfocusedTextColor = Color.Black))
             Spacer(modifier = Modifier.width(12.dp))
             Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(Color(config.colorArgb)).border(1.dp, Color.Gray, CircleShape).clickable { showColorPicker = true })
         }
