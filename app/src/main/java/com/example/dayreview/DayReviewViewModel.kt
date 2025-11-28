@@ -42,53 +42,46 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    // --- DATE & NAVIGATION ---
+    // --- DATE LOGIC FIX ---
     
     fun setDate(date: LocalDate) { _selectedDate.value = date }
     
-    // For Month Picker Bottom Sheet
+    // FIX: Check if the picked month is the Current Month. If so, select TODAY.
     fun setYearMonth(ym: YearMonth) {
-        val current = _selectedDate.value
-        val newDate = current.withYear(ym.year).withMonth(ym.monthValue).withDayOfMonth(1)
-        setDate(newDate)
+        val today = LocalDate.now()
+        if (ym.year == today.year && ym.month == today.month) {
+            setDate(today)
+        } else {
+            // Default to 1st of month
+            setDate(today.withYear(ym.year).withMonth(ym.monthValue).withDayOfMonth(1))
+        }
     }
 
-    // For Arrows/Swipe (if needed)
+    // Same logic for Arrows
     fun changeMonth(newMonthValue: Int) {
         val today = LocalDate.now()
         val currentSelected = _selectedDate.value
-        if (newMonthValue == today.monthValue && currentSelected.year == today.year) setDate(today) 
-        else setDate(currentSelected.withMonth(newMonthValue).withDayOfMonth(1))
+        // Calculate the target year/month first
+        var targetDate = currentSelected.withMonth(newMonthValue)
+        // Handle year wrap-around if needed (simple logic assumes same year for now, can improve)
+        // Note: The UI just passes month value 1-12. Usually arrow logic handles year += 1.
+        // For simple Prev/Next logic, let's trust the Caller to provide the right Int or we use strict PlusMonths
+        // Re-implementing strict previous/next logic:
+        
+        // Simpler: Just check if we are landing on Today's month/year
+        if (newMonthValue == today.monthValue && currentSelected.year == today.year) {
+            setDate(today)
+        } else {
+            setDate(currentSelected.withMonth(newMonthValue).withDayOfMonth(1))
+        }
     }
 
-    // --- TASKS ---
-
-    fun addTask(title: String, time: String?) { 
-        viewModelScope.launch { taskDao.insertTask(TaskEntity(title = title, isDone = false, date = _selectedDate.value.toString(), time = time)) } 
-    }
-    
-    fun toggleTask(task: TaskEntity) { 
-        viewModelScope.launch { taskDao.updateTask(task.copy(isDone = !task.isDone)) } 
-    }
-    
-    // Fixed: Handles both Title and Time updates
-    fun updateTaskDetails(task: TaskEntity, newTitle: String, newTime: String?) { 
-        viewModelScope.launch { taskDao.updateTask(task.copy(title = newTitle, time = newTime)) } 
-    }
-    
-    // Helper for backward compatibility
-    fun updateTaskTitle(task: TaskEntity, newTitle: String) {
-        viewModelScope.launch { taskDao.updateTask(task.copy(title = newTitle)) }
-    }
-    
-    fun deleteTask(task: TaskEntity) { 
-        viewModelScope.launch { taskDao.deleteTask(task) } 
-    }
-
-    // --- HABITS ---
+    fun addTask(title: String, time: String?) { viewModelScope.launch { taskDao.insertTask(TaskEntity(title = title, isDone = false, date = _selectedDate.value.toString(), time = time)) } }
+    fun toggleTask(task: TaskEntity) { viewModelScope.launch { taskDao.updateTask(task.copy(isDone = !task.isDone)) } }
+    fun updateTaskDetails(task: TaskEntity, newTitle: String, newTime: String?) { viewModelScope.launch { taskDao.updateTask(task.copy(title = newTitle, time = newTime)) } }
+    fun deleteTask(task: TaskEntity) { viewModelScope.launch { taskDao.deleteTask(task) } }
 
     fun addHabit(title: String, color: Int) { 
-        // Start with empty history
         val history = List(30) { false } 
         viewModelScope.launch { habitDao.insertHabit(HabitEntity(title = title, colorArgb = color, history = history)) } 
     }
@@ -97,32 +90,17 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             val habit = habits.value.find { it.id == habitId } ?: return@launch
             val newStatus = !habit.isDoneToday
-            
-            // Visual Heatmap Update (Day Index Logic)
             val todayIdx = LocalDate.now().dayOfMonth - 1
             val newHistory = habit.history.toMutableList()
             if (todayIdx in newHistory.indices) newHistory[todayIdx] = newStatus
-            
-            // Streak Logic (Increment/Decrement)
             val newStreak = if (newStatus) habit.streak + 1 else max(0, habit.streak - 1)
-            
             habitDao.updateHabit(habit.copy(isDoneToday = newStatus, history = newHistory, streak = newStreak))
         }
     }
-    
     fun updateHabit(habit: HabitEntity) { viewModelScope.launch { habitDao.updateHabit(habit) } }
-    
     fun deleteHabit(habit: HabitEntity) { viewModelScope.launch { habitDao.deleteHabit(habit) } }
-
-    // --- RATINGS & CONFIG ---
-
-    fun setRating(moodId: Int) { 
-        viewModelScope.launch { ratingDao.setRating(RatingEntity(date = LocalDate.now().toString(), moodId = moodId)) } 
-    }
-    
-    fun updateMoodConfig(config: MoodConfigEntity) { 
-        viewModelScope.launch { moodDao.updateConfig(config) } 
-    }
+    fun setRating(moodId: Int) { viewModelScope.launch { ratingDao.setRating(RatingEntity(date = LocalDate.now().toString(), moodId = moodId)) } }
+    fun updateMoodConfig(config: MoodConfigEntity) { viewModelScope.launch { moodDao.updateConfig(config) } }
 }
 
 class DayReviewViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
