@@ -59,7 +59,6 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.Month
 import java.time.YearMonth
-// CRITICAL FIX: Alias Java's TextStyle to avoid conflict with Compose TextStyle
 import java.time.format.TextStyle as JavaTextStyle
 import java.util.Locale
 import androidx.compose.material3.SwipeToDismissBox
@@ -88,7 +87,6 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
 
     var showAddTaskDialog by remember { mutableStateOf(false) }
     var showAddHabitDialog by remember { mutableStateOf(false) }
-    
     var taskToEdit by remember { mutableStateOf<TaskEntity?>(null) }
     var habitToEdit by remember { mutableStateOf<HabitEntity?>(null) }
     var habitToDelete by remember { mutableStateOf<HabitEntity?>(null) }
@@ -140,10 +138,8 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
-
             TabSegmentControl(currentTab) { currentTab = it }
             Spacer(modifier = Modifier.height(12.dp))
-
             Crossfade(targetState = currentTab, label = "Tab") { tab ->
                 when (tab) {
                     AppTab.Plan -> PlanContent(
@@ -179,8 +175,64 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
     if (habitToEdit != null) { CustomAddHabitDialog(initialName = habitToEdit!!.title, initialColor = Color(habitToEdit!!.colorArgb), isEditMode = true, onDismiss = { habitToEdit = null }, onAdd = { title, color -> viewModel.updateHabit(habitToEdit!!.copy(title = title, colorArgb = color.toArgb())); habitToEdit = null }) }
 }
 
-// --- CUSTOM UI COMPONENTS ---
+// --- FIXED CALENDAR (Strict Circle + Today Indicator) ---
+@Composable
+fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<LocalDate, MoodConfigEntity?>, onDateSelected: (LocalDate) -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().background(Color(0xFFF8F9FA), RoundedCornerShape(24.dp)).padding(16.dp)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            listOf("S", "M", "T", "W", "T", "F", "S").forEach { day ->
+                Text(text = day, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        val daysInMonth = displayedDate.lengthOfMonth()
+        val startOffset = displayedDate.withDayOfMonth(1).dayOfWeek.value % 7 
+        
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            repeat(6) { weekIndex ->
+                Row(modifier = Modifier.fillMaxWidth().height(42.dp), verticalAlignment = Alignment.CenterVertically) {
+                    repeat(7) { dayIndex ->
+                        val totalIndex = weekIndex * 7 + dayIndex
+                        val dayNum = totalIndex - startOffset + 1
+                        
+                        Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                            if (totalIndex >= startOffset && dayNum <= daysInMonth) {
+                                val cellDate = displayedDate.withDayOfMonth(dayNum)
+                                val rating = ratedDays[cellDate]
+                                val isSelected = cellDate == displayedDate
+                                
+                                // FORCE CIRCLE CONTAINER
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .size(36.dp) // STRICT SIZE TO FORCE CIRCLE
+                                        .clip(CircleShape)
+                                        .background(when { 
+                                            rating != null -> Color(rating.colorArgb)
+                                            isSelected -> Color.Black
+                                            else -> Color.Transparent 
+                                        })
+                                        .clickable { onDateSelected(cellDate) }
+                                ) {
+                                    Text(
+                                        text = "$dayNum", 
+                                        fontSize = 13.sp, 
+                                        fontWeight = if (cellDate == today) FontWeight.ExtraBold else FontWeight.Medium,
+                                        color = if (rating != null || isSelected) Color.White else Color.Black
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
+// ... REUSED COMPONENTS (Sleek Dialogs, etc) ...
 @Composable
 fun SleekTextField(value: String, onValueChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: (() -> Unit)? = null) {
     BasicTextField(
@@ -194,12 +246,7 @@ fun SleekTextField(value: String, onValueChange: (String) -> Unit, placeholder: 
             .background(Color.White)
             .clickable(enabled = onClick != null) { onClick?.invoke() }
             .padding(horizontal = 12.dp),
-        decorationBox = { innerTextField ->
-            Box(contentAlignment = Alignment.CenterStart) {
-                if (value.isEmpty()) Text(placeholder, color = Color(0xFF9E9E9E), fontSize = 15.sp)
-                innerTextField()
-            }
-        }
+        decorationBox = { innerTextField -> Box(contentAlignment = Alignment.CenterStart) { if (value.isEmpty()) Text(placeholder, color = Color(0xFF9E9E9E), fontSize = 15.sp); innerTextField() } }
     )
 }
 
@@ -214,21 +261,9 @@ fun CustomAddTaskDialog(initialName: String = "", initialTime: String? = null, i
         Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(24.dp)) {
             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(if(isEditMode) "Edit Task" else "Add Task", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Name", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Black)
-                    SleekTextField(value = name, onValueChange = { name = it }, placeholder = "Enter task name...", modifier = Modifier.fillMaxWidth())
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Time", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Black)
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        SleekTextField(value = time ?: "", onValueChange = {}, placeholder = "Select time", enabled = false, modifier = Modifier.fillMaxWidth(), onClick = { timePickerDialog.show() })
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                    TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel", color = Color.Black, fontWeight = FontWeight.SemiBold) }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Button(onClick = { if (name.isNotBlank()) onAdd(name, time) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black, contentColor = Color.White), shape = RoundedCornerShape(10.dp), modifier = Modifier.weight(1f)) { Text(if(isEditMode) "Save" else "Add") }
-                }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { Text("Name", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Black); SleekTextField(value = name, onValueChange = { name = it }, placeholder = "Enter task name...", modifier = Modifier.fillMaxWidth()) }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { Text("Time", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Black); Box(modifier = Modifier.fillMaxWidth()) { SleekTextField(value = time ?: "", onValueChange = {}, placeholder = "Select time", enabled = false, modifier = Modifier.fillMaxWidth(), onClick = { timePickerDialog.show() }) } }
+                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) { TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel", color = Color.Black, fontWeight = FontWeight.SemiBold) }; Spacer(modifier = Modifier.width(12.dp)); Button(onClick = { if (name.isNotBlank()) onAdd(name, time) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black, contentColor = Color.White), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f)) { Text(if(isEditMode) "Save" else "Add") } }
             }
         }
     }
@@ -244,52 +279,22 @@ fun CustomAddHabitDialog(initialName: String = "", initialColor: Color? = null, 
         Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(24.dp)) {
             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(if(isEditMode) "Edit Habit" else "Add Habit", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Name", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Black)
-                    SleekTextField(value = name, onValueChange = { name = it }, placeholder = "Enter habit name...", modifier = Modifier.fillMaxWidth())
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Color", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Black)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        HabitColors.forEach { color ->
-                            val isSelected = selectedColor == color
-                            Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(color).then(if(isSelected) Modifier.border(2.dp, Color.Black, CircleShape) else Modifier).clickable { selectedColor = color })
-                        }
-                        Box(modifier = Modifier.size(32.dp).border(1.dp, Color(0xFFE0E0E0), CircleShape).clickable { showColorPicker = true }, contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Add, "More", tint = Color.Black, modifier = Modifier.size(16.dp)) }
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                    TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel", color = Color.Black, fontWeight = FontWeight.SemiBold) }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Button(onClick = { if (name.isNotBlank()) onAdd(name, selectedColor) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black, contentColor = Color.White), shape = RoundedCornerShape(10.dp), modifier = Modifier.weight(1f)) { Text(if(isEditMode) "Save" else "Add") }
-                }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { Text("Name", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Black); SleekTextField(value = name, onValueChange = { name = it }, placeholder = "Enter habit name...", modifier = Modifier.fillMaxWidth()) }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { Text("Color", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Black); Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { HabitColors.forEach { color -> val isSelected = selectedColor == color; Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(color).then(if(isSelected) Modifier.border(2.dp, Color.Black, CircleShape) else Modifier).clickable { selectedColor = color }) }; Box(modifier = Modifier.size(36.dp).border(1.dp, Color(0xFFE0E0E0), CircleShape).clickable { showColorPicker = true }, contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Add, "More", tint = Color.Black, modifier = Modifier.size(18.dp)) } } }
+                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) { TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel", color = Color.Black, fontWeight = FontWeight.SemiBold) }; Spacer(modifier = Modifier.width(12.dp)); Button(onClick = { if (name.isNotBlank()) onAdd(name, selectedColor) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black, contentColor = Color.White), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f)) { Text(if(isEditMode) "Save" else "Add") } }
             }
         }
     }
     if (showColorPicker) { Dialog(onDismissRequest = { showColorPicker = false }) { Card(colors = CardDefaults.cardColors(containerColor = Color.White)) { Column(Modifier.padding(16.dp)) { Text("Select Color", fontWeight = FontWeight.Bold, color = Color.Black); Spacer(Modifier.height(12.dp)); LazyVerticalGrid(columns = GridCells.Adaptive(40.dp), modifier = Modifier.height(200.dp)) { items(MegaPalette.size) { i -> Box(modifier = Modifier.size(40.dp).padding(4.dp).clip(CircleShape).background(MegaPalette[i]).clickable { selectedColor = MegaPalette[i]; showColorPicker = false }) } } } } } }
 }
 
-// ... Reused Components ...
+// ... Reused ...
 @Composable
-fun TopHeader(currentDate: LocalDate, onSettingsClick: () -> Unit, onMonthClick: () -> Unit) { 
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { 
-        IconButton(onClick = onSettingsClick, modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFF5F5F5))) { Icon(Icons.Default.Settings, "Settings", tint = Color.Black) }
-        Box { 
-            Surface(shape = RoundedCornerShape(50), color = Color(0xFFF5F5F5), modifier = Modifier.height(40.dp).clickable { onMonthClick() }) { 
-                Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) { 
-                    // FIX: Use JavaTextStyle.FULL
-                    Text(currentDate.month.getDisplayName(JavaTextStyle.FULL, Locale.getDefault()), fontWeight = FontWeight.SemiBold, color = Color.Black)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.Black) 
-                } 
-            } 
-        } 
-    } 
-}
+fun TopHeader(currentDate: LocalDate, onSettingsClick: () -> Unit, onMonthClick: () -> Unit) { Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = onSettingsClick, modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFF5F5F5))) { Icon(Icons.Default.Settings, "Settings", tint = Color.Black) }; Box { Surface(shape = RoundedCornerShape(50), color = Color(0xFFF5F5F5), modifier = Modifier.height(40.dp).clickable { onMonthClick() }) { Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) { Text(currentDate.month.getDisplayName(TextStyle.FULL, Locale.getDefault()), fontWeight = FontWeight.SemiBold, color = Color.Black); Spacer(modifier = Modifier.width(4.dp)); Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.Black) } } } } }
 @Composable
 fun MoodFaceButton(config: MoodConfigEntity, onClick: () -> Unit) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(config.colorArgb)).clickable { onClick() }) { Icon(painter = painterResource(config.iconResId), contentDescription = config.label, tint = Color.White, modifier = Modifier.size(24.dp)) }; Spacer(modifier = Modifier.height(4.dp)); Text(text = config.label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(config.colorArgb), textAlign = TextAlign.Center) } }
 @Composable
-fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<LocalDate, MoodConfigEntity?>, onDateSelected: (LocalDate) -> Unit) { Column(modifier = Modifier.fillMaxWidth().height(260.dp).background(Color(0xFFF8F9FA), RoundedCornerShape(24.dp)).padding(12.dp)) { Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { listOf("S", "M", "T", "W", "T", "F", "S").forEach { day -> Text(day, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.weight(1f), textAlign = TextAlign.Center) } }; Spacer(modifier = Modifier.height(4.dp)); val daysInMonth = displayedDate.lengthOfMonth(); val startOffset = displayedDate.withDayOfMonth(1).dayOfWeek.value % 7; LazyVerticalGrid(columns = GridCells.Fixed(7), modifier = Modifier.fillMaxSize(), userScrollEnabled = false) { items(42) { index -> val dayNum = index - startOffset + 1; if (index < startOffset || dayNum > daysInMonth) { Box(modifier = Modifier.size(30.dp)) } else { val cellDate = displayedDate.withDayOfMonth(dayNum); val rating = ratedDays[cellDate]; val isSelected = cellDate == displayedDate; Box(contentAlignment = Alignment.Center, modifier = Modifier.size(32.dp).clip(rating?.let { CircleShape } ?: CircleShape).background(when { rating != null -> Color(rating.colorArgb); isSelected -> Color.Black; else -> Color.Transparent }).clickable { onDateSelected(cellDate) }) { Text("$dayNum", fontSize = 12.sp, fontWeight = if (cellDate==today) FontWeight.ExtraBold else FontWeight.Medium, color = if (rating != null || isSelected) Color.White else Color.Black) } } } } } }
+fun MonthPickerBottomSheet(open: Boolean, selected: YearMonth, onDismiss: () -> Unit, onMonthSelected: (YearMonth) -> Unit) { if (!open) return; ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color.White, dragHandle = { BottomSheetDefaults.DragHandle() }) { var year by remember { mutableStateOf(selected.year) }; Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) { Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text("Select Month", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold, color = Color.Black), modifier = Modifier.weight(1f)); Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { IconButton(onClick = { year-- }) { Icon(Icons.Default.KeyboardArrowLeft, null, tint = Color.Black) }; Text(text = year.toString(), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium, color = Color.Black)); IconButton(onClick = { year++ }) { Icon(Icons.Default.KeyboardArrowRight, null, tint = Color.Black) } } }; Spacer(Modifier.height(12.dp)); val months = remember { Month.values().toList() }; LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxWidth().navigationBarsPadding(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 16.dp)) { items(months) { m -> val isSelected = (m.value == selected.month.value && year == selected.year); Surface(color = if (isSelected) Color.Black else Color(0xFFF0F0F0), contentColor = if (isSelected) Color.White else Color.Black, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(14.dp)).clickable { onMonthSelected(YearMonth.of(year, m)); onDismiss() }) { Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) { Text(text = m.name.take(3), fontWeight = FontWeight.SemiBold, fontSize = 15.sp) } } } } } } }
 @Composable
 fun TabSegmentControl(selected: AppTab, onSelect: (AppTab) -> Unit) { Row(modifier = Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF0F0F0)).padding(4.dp), horizontalArrangement = Arrangement.SpaceBetween) { AppTab.values().forEach { tab -> val isSelected = selected == tab; Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(8.dp)).background(if (isSelected) Color.White else Color.Transparent).clickable { onSelect(tab) }) { Text(tab.name, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) Color.Black else Color.Gray, fontSize = 14.sp) } } } }
 @Composable
@@ -300,6 +305,4 @@ fun PlanContent(tasks: List<TaskEntity>, ghostTasks: List<TaskEntity>, isEditabl
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HabitsContent(habits: List<HabitEntity>, onToggle: (HabitEntity) -> Unit, onDelete: (HabitEntity) -> Unit, onEdit: (HabitEntity) -> Unit) { val haptic = LocalHapticFeedback.current; if (habits.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No habits yet.", color = Color.LightGray) } }; LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 80.dp)) { items(habits.size) { i -> val habit = habits[i]; val color = Color(habit.colorArgb); val totalFilled = habit.history.count { it }; val random = Random(habit.id); val displayPattern = List(30) { false }.toMutableList(); val indices = (0 until 30).toMutableList(); repeat(totalFilled.coerceAtMost(30)) { if (indices.isNotEmpty()) { val randIndex = indices.removeAt(random.nextInt(indices.size)); displayPattern[randIndex] = true } }; val dismissState = rememberSwipeToDismissBoxState(confirmValueChange = { if (it == SwipeToDismissBoxValue.EndToStart) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onDelete(habit); false } else if (it == SwipeToDismissBoxValue.StartToEnd) { onEdit(habit); false }; else false }); SwipeToDismissBox(state = dismissState, backgroundContent = { val bg = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) Color.Red else Color.Gray; val align = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) Alignment.CenterEnd else Alignment.CenterStart; val icon = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) Icons.Default.Delete else Icons.Default.Edit; Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(bg).padding(horizontal = 20.dp), contentAlignment = align) { Icon(icon, null, tint = Color.White) } }) { Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, Color(0xFFF0F0F0), RoundedCornerShape(16.dp)).combinedClickable(onClick = { if (!habit.isDoneToday) onToggle(habit) }, onLongClick = { if (habit.isDoneToday) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onToggle(habit) } }).padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Column(modifier = Modifier.weight(1f)) { Text(habit.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color.Black); Spacer(modifier = Modifier.height(10.dp)); Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { repeat(5) { r -> Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { repeat(7) { c -> val isVisible = !((r == 0 && c < 2) || (r == 4 && c > 4)); if (isVisible) { val linearIdx = (r * 7 + c) - 2; val isFilled = if(linearIdx in displayPattern.indices) displayPattern[linearIdx] else false; Box(modifier = Modifier.width(12.dp).height(6.dp).clip(RoundedCornerShape(2.dp)).background(if (isFilled) color else Color(0xFFF0F0F0))) } else { Box(modifier = Modifier.width(12.dp).height(6.dp).background(Color.Transparent)) } } } } } }; Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) { Text("🔥 ${habit.streak}", fontSize = 12.sp, color = Color.Gray); Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(if (habit.isDoneToday) color else Color(0xFFF0F0F0)).clickable { onToggle(habit) }, contentAlignment = Alignment.Center) { if (habit.isDoneToday) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(18.dp)) } } } } } } }
-@Composable
-fun MonthPickerBottomSheet(open: Boolean, selected: YearMonth, onDismiss: () -> Unit, onMonthSelected: (YearMonth) -> Unit) { if (!open) return; ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color.White, dragHandle = { BottomSheetDefaults.DragHandle() }) { var year by remember { mutableStateOf(selected.year) }; Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) { Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text("Select Month", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold, color = Color.Black), modifier = Modifier.weight(1f)); Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { IconButton(onClick = { year-- }) { Icon(Icons.Default.KeyboardArrowLeft, null, tint = Color.Black) }; Text(text = year.toString(), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium, color = Color.Black)); IconButton(onClick = { year++ }) { Icon(Icons.Default.KeyboardArrowRight, null, tint = Color.Black) } } }; Spacer(Modifier.height(12.dp)); val months = remember { Month.values().toList() }; LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxWidth().navigationBarsPadding(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 16.dp)) { items(months) { m -> val isSelected = (m.value == selected.month.value && year == selected.year); Surface(color = if (isSelected) Color.Black else Color(0xFFF0F0F0), contentColor = if (isSelected) Color.White else Color.Black, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(14.dp)).clickable { onMonthSelected(YearMonth.of(year, m)); onDismiss() }) { Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) { Text(text = m.name.take(3), fontWeight = FontWeight.SemiBold, fontSize = 15.sp) } } } } } } }
 fun Modifier.alpha(value: Float) = this.then(Modifier.background(Color.Transparent.copy(alpha = 1f - value)))

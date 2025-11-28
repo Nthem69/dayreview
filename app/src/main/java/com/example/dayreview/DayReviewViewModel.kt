@@ -42,38 +42,22 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    // --- DATE LOGIC FIX ---
-    
     fun setDate(date: LocalDate) { _selectedDate.value = date }
     
-    // FIX: Check if the picked month is the Current Month. If so, select TODAY.
     fun setYearMonth(ym: YearMonth) {
         val today = LocalDate.now()
         if (ym.year == today.year && ym.month == today.month) {
             setDate(today)
         } else {
-            // Default to 1st of month
             setDate(today.withYear(ym.year).withMonth(ym.monthValue).withDayOfMonth(1))
         }
     }
 
-    // Same logic for Arrows
     fun changeMonth(newMonthValue: Int) {
         val today = LocalDate.now()
         val currentSelected = _selectedDate.value
-        // Calculate the target year/month first
-        var targetDate = currentSelected.withMonth(newMonthValue)
-        // Handle year wrap-around if needed (simple logic assumes same year for now, can improve)
-        // Note: The UI just passes month value 1-12. Usually arrow logic handles year += 1.
-        // For simple Prev/Next logic, let's trust the Caller to provide the right Int or we use strict PlusMonths
-        // Re-implementing strict previous/next logic:
-        
-        // Simpler: Just check if we are landing on Today's month/year
-        if (newMonthValue == today.monthValue && currentSelected.year == today.year) {
-            setDate(today)
-        } else {
-            setDate(currentSelected.withMonth(newMonthValue).withDayOfMonth(1))
-        }
+        if (newMonthValue == today.monthValue && currentSelected.year == today.year) setDate(today) 
+        else setDate(currentSelected.withMonth(newMonthValue).withDayOfMonth(1))
     }
 
     fun addTask(title: String, time: String?) { viewModelScope.launch { taskDao.insertTask(TaskEntity(title = title, isDone = false, date = _selectedDate.value.toString(), time = time)) } }
@@ -98,7 +82,10 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
     fun updateHabit(habit: HabitEntity) { viewModelScope.launch { habitDao.updateHabit(habit) } }
-    fun deleteHabit(habit: HabitEntity) { viewModelScope.launch { habitDao.deleteHabit(habit) } }
+    
+    // FIX: Use delete by ID to ensure it works even if object state changed
+    fun deleteHabit(habit: HabitEntity) { viewModelScope.launch { habitDao.deleteHabitById(habit.id) } }
+    
     fun setRating(moodId: Int) { viewModelScope.launch { ratingDao.setRating(RatingEntity(date = LocalDate.now().toString(), moodId = moodId)) } }
     fun updateMoodConfig(config: MoodConfigEntity) { viewModelScope.launch { moodDao.updateConfig(config) } }
 }

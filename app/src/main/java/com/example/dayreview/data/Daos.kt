@@ -25,8 +25,10 @@ interface HabitDao {
     suspend fun insertHabit(habit: HabitEntity)
     @Update
     suspend fun updateHabit(habit: HabitEntity)
-    @Delete
-    suspend fun deleteHabit(habit: HabitEntity) // ADDED THIS
+    
+    // FIX: Delete by ID (Robust deletion)
+    @Query("DELETE FROM habits WHERE id = :id")
+    suspend fun deleteHabitById(id: Long)
 }
 
 @Dao
