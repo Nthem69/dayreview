@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -59,8 +58,10 @@ import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import kotlin.random.Random
 
-// Global Constants
-val HabitColors = listOf(Color(0xFF4FB3FF), Color(0xFFFF6F3B), Color(0xFF4CAF50), Color(0xFFE91E63), Color(0xFF9C27B0))
+// CRITICAL FIX: Imports from Color.kt
+import com.example.dayreview.ui.theme.HabitColors
+import com.example.dayreview.ui.theme.MegaPalette
+
 enum class AppTab { Plan, Habits, Tracker }
 
 @Composable
@@ -81,6 +82,7 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
     var showAddTaskDialog by remember { mutableStateOf(false) }
     var showAddHabitDialog by remember { mutableStateOf(false) }
     
+    // Edit States
     var taskToEdit by remember { mutableStateOf<TaskEntity?>(null) }
     var habitToEdit by remember { mutableStateOf<HabitEntity?>(null) }
     var habitToDelete by remember { mutableStateOf<HabitEntity?>(null) }
@@ -150,13 +152,8 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
     }
     
     // --- DIALOGS ---
-    if (showAddTaskDialog) { 
-        CustomAddTaskDialog(onDismiss = { showAddTaskDialog = false }, onAdd = { title, time -> viewModel.addTask(title, time); showAddTaskDialog = false }) 
-    }
-    
-    if (showAddHabitDialog) { 
-        CustomAddHabitDialog(onDismiss = { showAddHabitDialog = false }, onAdd = { title, color -> viewModel.addHabit(title, color.toArgb()); showAddHabitDialog = false }) 
-    }
+    if (showAddTaskDialog) { CustomAddTaskDialog(onDismiss = { showAddTaskDialog = false }, onAdd = { title, time -> viewModel.addTask(title, time); showAddTaskDialog = false }) }
+    if (showAddHabitDialog) { CustomAddHabitDialog(onDismiss = { showAddHabitDialog = false }, onAdd = { title, color -> viewModel.addHabit(title, color.toArgb()); showAddHabitDialog = false }) }
     
     if (habitToDelete != null) {
         AlertDialog(
@@ -169,11 +166,11 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
         )
     }
     
-    // FIX: Editing now includes Time
+    // FIX: Editing Task now saves TIME
     if (taskToEdit != null) { 
         CustomAddTaskDialog(
             initialName = taskToEdit!!.title,
-            initialTime = taskToEdit!!.time,
+            initialTime = taskToEdit!!.time, // Pre-fill time
             isEditMode = true,
             onDismiss = { taskToEdit = null },
             onAdd = { title, time -> 
@@ -183,19 +180,11 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
         ) 
     }
     
-    if (habitToEdit != null) { 
-        CustomAddHabitDialog(
-            initialName = habitToEdit!!.title, 
-            initialColor = Color(habitToEdit!!.colorArgb), 
-            isEditMode = true, 
-            onDismiss = { habitToEdit = null }, 
-            onAdd = { title, color -> viewModel.updateHabit(habitToEdit!!.copy(title = title, colorArgb = color.toArgb())); habitToEdit = null }
-        ) 
-    }
+    if (habitToEdit != null) { CustomAddHabitDialog(initialName = habitToEdit!!.title, initialColor = Color(habitToEdit!!.colorArgb), isEditMode = true, onDismiss = { habitToEdit = null }, onAdd = { title, color -> viewModel.updateHabit(habitToEdit!!.copy(title = title, colorArgb = color.toArgb())); habitToEdit = null }) }
 }
 
 // =====================================================================
-// NEW SLIM DIALOGS (Reduced Padding/Size)
+// SLEEK DIALOGS
 // =====================================================================
 
 @Composable
@@ -217,53 +206,32 @@ fun CustomAddTaskDialog(
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = RoundedCornerShape(16.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { // Compact Spacing
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(if(isEditMode) "Edit Task" else "Add Task", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-
-                // Name
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Name", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Black)
                     OutlinedTextField(
                         value = name, onValueChange = { name = it },
                         placeholder = { Text("Enter task name...", color = Color(0xFF9E9E9E), fontSize = 14.sp) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFFE0E0E0), unfocusedBorderColor = Color(0xFFE0E0E0),
-                            focusedContainerColor = Color.White, unfocusedContainerColor = Color.White,
-                            focusedTextColor = Color.Black, unfocusedTextColor = Color.Black
-                        ),
+                        singleLine = true, shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFFE0E0E0), unfocusedBorderColor = Color(0xFFE0E0E0), focusedContainerColor = Color.White, unfocusedContainerColor = Color.White, focusedTextColor = Color.Black, unfocusedTextColor = Color.Black),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-
-                // Time (Full Width)
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Time", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Black)
                     OutlinedTextField(
-                        value = time ?: "", onValueChange = {},
-                        enabled = false,
+                        value = time ?: "", onValueChange = {}, enabled = false,
                         placeholder = { Text("Select time", color = Color(0xFF9E9E9E), fontSize = 14.sp) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            disabledBorderColor = Color(0xFFE0E0E0), disabledTextColor = Color.Black,
-                            disabledContainerColor = Color.White, disabledPlaceholderColor = Color(0xFF9E9E9E)
-                        ),
+                        singleLine = true, shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(disabledBorderColor = Color(0xFFE0E0E0), disabledTextColor = Color.Black, disabledContainerColor = Color.White, disabledPlaceholderColor = Color(0xFF9E9E9E)),
                         modifier = Modifier.fillMaxWidth().clickable { timePickerDialog.show() }
                     )
                 }
-
-                // Buttons
                 Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                     TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel", color = Color.Black, fontWeight = FontWeight.SemiBold) }
                     Spacer(modifier = Modifier.width(12.dp))
-                    Button(
-                        onClick = { if (name.isNotBlank()) onAdd(name, time) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Black, contentColor = Color.White),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1f)
-                    ) { Text(if(isEditMode) "Save" else "Add") }
+                    Button(onClick = { if (name.isNotBlank()) onAdd(name, time) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black, contentColor = Color.White), shape = RoundedCornerShape(10.dp), modifier = Modifier.weight(1f)) { Text(if(isEditMode) "Save" else "Add") }
                 }
             }
         }
@@ -284,28 +252,19 @@ fun CustomAddHabitDialog(
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = RoundedCornerShape(16.dp), color = Color.White, modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(if(isEditMode) "Edit Habit" else "Add Habit", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-
-                // Name
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Name", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Black)
                     OutlinedTextField(
                         value = name, onValueChange = { name = it },
                         placeholder = { Text("Enter habit name...", color = Color(0xFF9E9E9E), fontSize = 14.sp) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFFE0E0E0), unfocusedBorderColor = Color(0xFFE0E0E0),
-                            focusedContainerColor = Color.White, unfocusedContainerColor = Color.White,
-                            focusedTextColor = Color.Black, unfocusedTextColor = Color.Black
-                        ),
+                        singleLine = true, shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFFE0E0E0), unfocusedBorderColor = Color(0xFFE0E0E0), focusedContainerColor = Color.White, unfocusedContainerColor = Color.White, focusedTextColor = Color.Black, unfocusedTextColor = Color.Black),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-
-                // Color
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Color", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Black)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         HabitColors.forEach { color ->
@@ -315,8 +274,6 @@ fun CustomAddHabitDialog(
                         Box(modifier = Modifier.size(32.dp).border(1.dp, Color(0xFFE0E0E0), CircleShape).clickable { showColorPicker = true }, contentAlignment = Alignment.Center) { Icon(Icons.Default.Add, "More", tint = Color.Black, modifier = Modifier.size(16.dp)) }
                     }
                 }
-
-                // Buttons
                 Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                     TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel", color = Color.Black, fontWeight = FontWeight.SemiBold) }
                     Spacer(modifier = Modifier.width(12.dp))
