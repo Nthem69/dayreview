@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,6 +22,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -51,6 +54,7 @@ import com.example.dayreview.R
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.Month
+import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
 import androidx.compose.material3.SwipeToDismissBox
@@ -75,7 +79,9 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
     val currentTime = remember { LocalTime.now() }
     var currentTab by remember { mutableStateOf(AppTab.Plan) }
     var showSettings by remember { mutableStateOf(false) }
+    var showMonthPicker by remember { mutableStateOf(false) } // State for Bottom Sheet
 
+    // Dialogs
     var showAddTaskDialog by remember { mutableStateOf(false) }
     var showAddHabitDialog by remember { mutableStateOf(false) }
     var taskToEdit by remember { mutableStateOf<TaskEntity?>(null) }
@@ -110,7 +116,8 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(12.dp))
-            TopHeader(selectedDate, { showSettings = true }) { newMonth -> viewModel.changeMonth(newMonth.value) }
+            // RESTORED: Header triggers Bottom Sheet
+            TopHeader(selectedDate, { showSettings = true }) { showMonthPicker = true }
             Spacer(modifier = Modifier.height(12.dp))
             
             val ratingVisuals = ratingsMap.mapValues { entry -> moodConfigs.find { it.id == entry.value } }
@@ -150,6 +157,14 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
         }
     }
     
+    // RESTORED: Bottom Sheet Picker
+    MonthPickerBottomSheet(
+        open = showMonthPicker,
+        selected = YearMonth.of(selectedDate.year, selectedDate.month),
+        onDismiss = { showMonthPicker = false },
+        onMonthSelected = { viewModel.setYearMonth(it) }
+    )
+
     if (habitToDelete != null) {
         AlertDialog(
             onDismissRequest = { habitToDelete = null },
@@ -166,44 +181,79 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
     if (habitToEdit != null) { CustomAddHabitDialog(initialName = habitToEdit!!.title, initialColor = Color(habitToEdit!!.colorArgb), isEditMode = true, onDismiss = { habitToEdit = null }, onAdd = { title, color -> viewModel.updateHabit(habitToEdit!!.copy(title = title, colorArgb = color.toArgb())); habitToEdit = null }) }
 }
 
-// --- CALENDAR FIX (Perfect Circle Selection) ---
+// --- RESTORED: MONTH PICKER BOTTOM SHEET ---
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MonthPickerBottomSheet(open: Boolean, selected: YearMonth, onDismiss: () -> Unit, onMonthSelected: (YearMonth) -> Unit) {
+    if (!open) return
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color.White, dragHandle = { BottomSheetDefaults.DragHandle() }) {
+        var year by remember { mutableStateOf(selected.year) }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Select Month", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold, color = Color.Black), modifier = Modifier.weight(1f))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconButton(onClick = { year-- }) { Icon(Icons.Default.KeyboardArrowLeft, null, tint = Color.Black) }
+                    Text(text = year.toString(), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium, color = Color.Black))
+                    IconButton(onClick = { year++ }) { Icon(Icons.Default.KeyboardArrowRight, null, tint = Color.Black) }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            val months = remember { Month.values().toList() }
+            LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxWidth().navigationBarsPadding(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
+                items(months) { m ->
+                    val isSelected = (m.value == selected.month.value && year == selected.year)
+                    Surface(
+                        color = if (isSelected) Color.Black else Color(0xFFF0F0F0),
+                        contentColor = if (isSelected) Color.White else Color.Black,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(14.dp)).clickable { onMonthSelected(YearMonth.of(year, m)); onDismiss() }
+                    ) { Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) { Text(text = m.name.take(3), fontWeight = FontWeight.SemiBold, fontSize = 15.sp) } }
+                }
+            }
+        }
+    }
+}
+
+// --- FIXED CALENDAR (Compact Height + Perfect Circle) ---
 @Composable
 fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<LocalDate, MoodConfigEntity?>, onDateSelected: (LocalDate) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .height(260.dp) // FIXED COMPACT HEIGHT
             .background(Color(0xFFF8F9FA), RoundedCornerShape(24.dp))
-            .padding(16.dp)
+            .padding(vertical = 12.dp, horizontal = 16.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             listOf("S", "M", "T", "W", "T", "F", "S").forEach { day ->
                 Text(text = day, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         
         val daysInMonth = displayedDate.lengthOfMonth()
         val startOffset = displayedDate.withDayOfMonth(1).dayOfWeek.value % 7 
         
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        // Manual 6-Row Layout
+        Column(verticalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxHeight()) {
             repeat(6) { weekIndex ->
-                Row(modifier = Modifier.fillMaxWidth().height(42.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.fillMaxWidth()) {
                     repeat(7) { dayIndex ->
                         val totalIndex = weekIndex * 7 + dayIndex
                         val dayNum = totalIndex - startOffset + 1
                         
-                        Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                             if (totalIndex >= startOffset && dayNum <= daysInMonth) {
                                 val cellDate = displayedDate.withDayOfMonth(dayNum)
                                 val rating = ratedDays[cellDate]
                                 val isSelected = cellDate == displayedDate
                                 
-                                // FIX: FORCE CIRCLE (Size 34dp + Clip CircleShape + Alignment Center)
+                                // FORCE CIRCLE: Explicit size + Clip
                                 Box(
                                     contentAlignment = Alignment.Center,
                                     modifier = Modifier
-                                        .size(34.dp) // Fixed square size prevents pill shape
-                                        .clip(CircleShape) // Strict circle
+                                        .size(32.dp) // STRICT CIRCLE SIZE
+                                        .clip(CircleShape)
                                         .background(when { 
                                             rating != null -> Color(rating.colorArgb)
                                             isSelected -> Color.Black
@@ -213,7 +263,7 @@ fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<Loc
                                 ) {
                                     Text(
                                         text = "$dayNum", 
-                                        fontSize = 13.sp, 
+                                        fontSize = 12.sp, 
                                         fontWeight = if (cellDate == today) FontWeight.ExtraBold else FontWeight.Medium,
                                         color = if (rating != null || isSelected) Color.White else Color.Black
                                     )
@@ -227,9 +277,9 @@ fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<Loc
     }
 }
 
-// ... Reused Components (TopHeader, MoodFaceButton, CustomAddTaskDialog, CustomAddHabitDialog, TabSegmentControl, TrackerContent, PlanContent, HabitsContent) ...
+// ... Reused Components ...
 @Composable
-fun TopHeader(currentDate: LocalDate, onSettingsClick: () -> Unit, onMonthSelected: (Month) -> Unit) { var menuExpanded by remember { mutableStateOf(false) }; Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = onSettingsClick, modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFF5F5F5))) { Icon(Icons.Default.Settings, "Settings", tint = Color.Black) }; Box { Surface(shape = RoundedCornerShape(50), color = Color(0xFFF5F5F5), modifier = Modifier.height(40.dp).clickable { menuExpanded = true }) { Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) { Text(currentDate.month.getDisplayName(TextStyle.FULL, Locale.getDefault()), fontWeight = FontWeight.SemiBold, color = Color.Black); Spacer(modifier = Modifier.width(4.dp)); Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.Black) } }; DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }, modifier = Modifier.background(Color.White)) { Month.values().forEach { month -> DropdownMenuItem(text = { Text(month.getDisplayName(TextStyle.FULL, Locale.getDefault()), color = Color.Black) }, onClick = { onMonthSelected(month); menuExpanded = false }) } } } } }
+fun TopHeader(currentDate: LocalDate, onSettingsClick: () -> Unit, onMonthClick: () -> Unit) { Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = onSettingsClick, modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFF5F5F5))) { Icon(Icons.Default.Settings, "Settings", tint = Color.Black) }; Box { Surface(shape = RoundedCornerShape(50), color = Color(0xFFF5F5F5), modifier = Modifier.height(40.dp).clickable { onMonthClick() }) { Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) { Text(currentDate.month.getDisplayName(TextStyle.FULL, Locale.getDefault()), fontWeight = FontWeight.SemiBold, color = Color.Black); Spacer(modifier = Modifier.width(4.dp)); Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.Black) } } } } }
 @Composable
 fun MoodFaceButton(config: MoodConfigEntity, onClick: () -> Unit) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(config.colorArgb)).clickable { onClick() }) { Icon(painter = painterResource(config.iconResId), contentDescription = config.label, tint = Color.White, modifier = Modifier.size(24.dp)) }; Spacer(modifier = Modifier.height(4.dp)); Text(text = config.label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(config.colorArgb), textAlign = TextAlign.Center) } }
 @Composable
