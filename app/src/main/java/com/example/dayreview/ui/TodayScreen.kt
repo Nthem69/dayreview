@@ -51,11 +51,12 @@ import java.time.LocalTime
 import java.time.Month
 import java.time.format.TextStyle
 import java.util.Locale
-import kotlin.random.Random
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
+import kotlin.random.Random
 
+// Global Constants
 val HabitColors = listOf(Color(0xFF4FB3FF), Color(0xFFFF6F3B), Color(0xFF4CAF50), Color(0xFFE91E63), Color(0xFF9C27B0))
 enum class AppTab { Plan, Habits, Tracker }
 
@@ -73,6 +74,7 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
     var currentTab by remember { mutableStateOf(AppTab.Plan) }
     var showSettings by remember { mutableStateOf(false) }
 
+    // Dialogs
     var showAddTaskDialog by remember { mutableStateOf(false) }
     var showAddHabitDialog by remember { mutableStateOf(false) }
     var taskToEdit by remember { mutableStateOf<TaskEntity?>(null) }
@@ -169,17 +171,16 @@ fun TodayScreen(viewModel: DayReviewViewModel) {
     if (habitToEdit != null) { HabitEditDialog(habitToEdit!!, false, { habitToEdit = null }) { title, color -> viewModel.updateHabit(habitToEdit!!.copy(title = title, colorArgb = color.toArgb())); habitToEdit = null } }
 }
 
+// --- CALENDAR FIX (Auto-Height) ---
 @Composable
 fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<LocalDate, MoodConfigEntity?>, onDateSelected: (LocalDate) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            // Height adjusted: header + 6 rows * (32dp + 4dp spacing) + padding
-            .height(280.dp) 
             .background(Color(0xFFF8F9FA), RoundedCornerShape(24.dp))
             .padding(16.dp)
     ) {
-        // FIX: Use weights to align perfectly with Grid Cells
+        // Header
         Row(modifier = Modifier.fillMaxWidth()) {
             listOf("S", "M", "T", "W", "T", "F", "S").forEach { day ->
                 Text(
@@ -196,121 +197,50 @@ fun MonthCalendar(displayedDate: LocalDate, today: LocalDate, ratedDays: Map<Loc
         
         val daysInMonth = displayedDate.lengthOfMonth()
         val startOffset = displayedDate.withDayOfMonth(1).dayOfWeek.value % 7 
-        val totalCells = 42 
         
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(7),
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(4.dp), // FIX: Tight spacing, no spreading
-            userScrollEnabled = false
-        ) {
-            items(totalCells) { index ->
-                val dayNum = index - startOffset + 1
-                if (index < startOffset || dayNum > daysInMonth) {
-                    Box(modifier = Modifier.size(30.dp)) 
-                } else {
-                    val cellDate = displayedDate.withDayOfMonth(dayNum)
-                    val rating = ratedDays[cellDate]
-                    val isSelected = cellDate == displayedDate
-                    
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .aspectRatio(1f) // Ensure circle shape
-                            .clip(rating?.let { CircleShape } ?: CircleShape)
-                            .background(when { 
-                                rating != null -> Color(rating.colorArgb)
-                                isSelected -> Color.Black
-                                else -> Color.Transparent 
-                            })
-                            .clickable { onDateSelected(cellDate) }
-                    ) {
-                        Text(
-                            text = "$dayNum", 
-                            fontSize = 12.sp, 
-                            fontWeight = if (cellDate==today) FontWeight.ExtraBold else FontWeight.Medium,
-                            color = if (rating != null || isSelected) Color.White else Color.Black
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun HabitsContent(habits: List<HabitEntity>, onToggle: (HabitEntity) -> Unit, onDelete: (HabitEntity) -> Unit, onEdit: (HabitEntity) -> Unit) {
-    val haptic = LocalHapticFeedback.current
-    if (habits.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No habits yet.", color = Color.LightGray) } }
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
-        items(habits.size) { i ->
-            val habit = habits[i]
-            val color = Color(habit.colorArgb)
-            
-            // RANDOM HEATMAP GENERATION
-            // Generate a deterministic random list of True/False based on streak count
-            // Seed with Habit ID so it doesn't flicker, but looks random
-            val totalFilled = habit.history.count { it }
-            val random = Random(habit.id)
-            val displayPattern = List(30) { false }.toMutableList() // 30 slots
-            
-            // Randomly pick 'totalFilled' indices to light up
-            val indices = (0 until 30).toMutableList()
-            repeat(totalFilled.coerceAtMost(30)) {
-                if (indices.isNotEmpty()) {
-                    val randIndex = indices.removeAt(random.nextInt(indices.size))
-                    displayPattern[randIndex] = true
-                }
-            }
-
-            val dismissState = rememberSwipeToDismissBoxState(
-                confirmValueChange = {
-                    if (it == SwipeToDismissBoxValue.EndToStart) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onDelete(habit); false } 
-                    else if (it == SwipeToDismissBoxValue.StartToEnd) { onEdit(habit); false }
-                    else false
-                }
-            )
-            SwipeToDismissBox(state = dismissState, backgroundContent = {
-                val bg = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) Color.Red else Color.Gray
-                val align = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) Alignment.CenterEnd else Alignment.CenterStart
-                val icon = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) Icons.Default.Delete else Icons.Default.Edit
-                Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(bg).padding(horizontal = 20.dp), contentAlignment = align) { Icon(icon, null, tint = Color.White) }
-            }) {
-                Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, Color(0xFFF0F0F0), RoundedCornerShape(16.dp)).combinedClickable(onClick = { if (!habit.isDoneToday) onToggle(habit) }, onLongClick = { if (habit.isDoneToday) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onToggle(habit) } }).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(habit.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color.Black)
-                        Spacer(modifier = Modifier.height(10.dp))
-                        // WAVE HEATMAP
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            repeat(5) { r ->
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    repeat(7) { c ->
-                                        val isVisible = !((r == 0 && c < 2) || (r == 4 && c > 4))
-                                        if (isVisible) {
-                                            // Map to linear index 0-29
-                                            val linearIdx = (r * 7 + c) - 2
-                                            val isFilled = if(linearIdx in displayPattern.indices) displayPattern[linearIdx] else false
-                                            Box(modifier = Modifier.width(12.dp).height(6.dp).clip(RoundedCornerShape(2.dp)).background(if (isFilled) color else Color(0xFFF0F0F0)))
-                                        } else { Box(modifier = Modifier.width(12.dp).height(6.dp).background(Color.Transparent)) }
-                                    }
+        // Manual 6-Row Grid (Prevents LazyGrid Clipping issues)
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            repeat(6) { weekIndex ->
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    repeat(7) { dayIndex ->
+                        val totalIndex = weekIndex * 7 + dayIndex
+                        val dayNum = totalIndex - startOffset + 1
+                        
+                        Box(modifier = Modifier.weight(1f).aspectRatio(1f), contentAlignment = Alignment.Center) {
+                            if (totalIndex >= startOffset && dayNum <= daysInMonth) {
+                                val cellDate = displayedDate.withDayOfMonth(dayNum)
+                                val rating = ratedDays[cellDate]
+                                val isSelected = cellDate == displayedDate
+                                
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(rating?.let { CircleShape } ?: CircleShape)
+                                        .background(when { 
+                                            rating != null -> Color(rating.colorArgb)
+                                            isSelected -> Color.Black
+                                            else -> Color.Transparent 
+                                        })
+                                        .clickable { onDateSelected(cellDate) }
+                                ) {
+                                    Text(
+                                        text = "$dayNum", 
+                                        fontSize = 12.sp, 
+                                        fontWeight = if (cellDate == today) FontWeight.ExtraBold else FontWeight.Medium,
+                                        color = if (rating != null || isSelected) Color.White else Color.Black
+                                    )
                                 }
                             }
                         }
                     }
-                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("🔥 ${habit.streak}", fontSize = 12.sp, color = Color.Gray)
-                        Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(if (habit.isDoneToday) color else Color(0xFFF0F0F0)).clickable { onToggle(habit) }, contentAlignment = Alignment.Center) {
-                            if (habit.isDoneToday) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                        }
-                    }
                 }
             }
         }
     }
 }
 
-// ... Reused Components ...
+// ... Reused Components (TopHeader, MoodFaceButton, TaskDialog, HabitEditDialog, TabSegmentControl, TrackerContent, PlanContent, HabitsContent) ...
 @Composable
 fun TopHeader(currentDate: LocalDate, onSettingsClick: () -> Unit, onMonthSelected: (Month) -> Unit) { var menuExpanded by remember { mutableStateOf(false) }; Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = onSettingsClick, modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFF5F5F5))) { Icon(Icons.Default.Settings, "Settings", tint = Color.Black) }; Box { Surface(shape = RoundedCornerShape(50), color = Color(0xFFF5F5F5), modifier = Modifier.height(40.dp).clickable { menuExpanded = true }) { Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) { Text(currentDate.month.getDisplayName(TextStyle.FULL, Locale.getDefault()), fontWeight = FontWeight.SemiBold, color = Color.Black); Spacer(modifier = Modifier.width(4.dp)); Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.Black) } }; DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }, modifier = Modifier.background(Color.White)) { Month.values().forEach { month -> DropdownMenuItem(text = { Text(month.getDisplayName(TextStyle.FULL, Locale.getDefault()), color = Color.Black) }, onClick = { onMonthSelected(month); menuExpanded = false }) } } } } }
 @Composable
@@ -326,4 +256,7 @@ fun TrackerContent() { Box(modifier = Modifier.fillMaxSize(), contentAlignment =
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun PlanContent(tasks: List<TaskEntity>, ghostTasks: List<TaskEntity>, isEditable: Boolean, onCheck: (TaskEntity) -> Unit, onUncheck: (TaskEntity) -> Unit, onDelete: (TaskEntity) -> Unit, onEdit: (TaskEntity) -> Unit) { val haptic = LocalHapticFeedback.current; LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 80.dp)) { if (ghostTasks.isNotEmpty() && isEditable) { item { Text("Unfinished Yesterday", style = MaterialTheme.typography.labelMedium, color = Color.Gray) }; items(ghostTasks.size) { i -> val task = ghostTasks[i]; Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFF9F9F9)).padding(16.dp).alpha(0.6f), verticalAlignment = Alignment.CenterVertically) { Text(task.title, color = Color.Gray, modifier = Modifier.weight(1f)); Icon(Icons.Default.Add, "Move", tint = Color.Black) } }; item { Spacer(modifier = Modifier.height(8.dp)) } }; if (tasks.isEmpty() && ghostTasks.isEmpty()) { item { Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) { Text("No tasks today.", color = Color.LightGray) } } } else { items(tasks.size, key = { tasks[it].id }) { i -> val task = tasks[i]; val dismissState = rememberSwipeToDismissBoxState(confirmValueChange = { when(it) { SwipeToDismissBoxValue.EndToStart -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onDelete(task); true }; SwipeToDismissBoxValue.StartToEnd -> { onEdit(task); false }; else -> false } }); SwipeToDismissBox(state = dismissState, backgroundContent = { val color = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) Color.Red else Color.Gray; val alignment = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) Alignment.CenterEnd else Alignment.CenterStart; val icon = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) Icons.Default.Delete else Icons.Default.Edit; Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(color).padding(horizontal = 20.dp), contentAlignment = alignment) { Icon(icon, "Action", tint = Color.White) } }) { Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFF8F9FA)).combinedClickable(onClick = { if (!task.isDone) onCheck(task) }, onLongClick = { if (task.isDone) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onUncheck(task) } }).padding(16.dp)) { Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(if (task.isDone) Color.Black else Color.Transparent, CircleShape).border(2.dp, if(task.isDone) Color.Black else Color.Gray, CircleShape), contentAlignment = Alignment.Center) { if (task.isDone) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(16.dp)) }; Spacer(modifier = Modifier.width(16.dp)); Column { Text(task.title, color = if (task.isDone) Color.Gray else Color.Black, style = MaterialTheme.typography.bodyLarge); if (task.time != null) Text(task.time, color = Color.Gray, fontSize = 12.sp) } } } } } } }
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun HabitsContent(habits: List<HabitEntity>, onToggle: (HabitEntity) -> Unit, onDelete: (HabitEntity) -> Unit, onEdit: (HabitEntity) -> Unit) { val haptic = LocalHapticFeedback.current; if (habits.isEmpty()) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No habits yet.", color = Color.LightGray) } }; LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 80.dp)) { items(habits.size) { i -> val habit = habits[i]; val color = Color(habit.colorArgb); val totalFilled = habit.history.count { it }; val random = Random(habit.id); val displayPattern = List(30) { false }.toMutableList(); val indices = (0 until 30).toMutableList(); repeat(totalFilled.coerceAtMost(30)) { if (indices.isNotEmpty()) { val randIndex = indices.removeAt(random.nextInt(indices.size)); displayPattern[randIndex] = true } }; val dismissState = rememberSwipeToDismissBoxState(confirmValueChange = { if (it == SwipeToDismissBoxValue.EndToStart) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onDelete(habit); false } else if (it == SwipeToDismissBoxValue.StartToEnd) { onEdit(habit); false }; else false }); SwipeToDismissBox(state = dismissState, backgroundContent = { val bg = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) Color.Red else Color.Gray; val align = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) Alignment.CenterEnd else Alignment.CenterStart; val icon = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) Icons.Default.Delete else Icons.Default.Edit; Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(bg).padding(horizontal = 20.dp), contentAlignment = align) { Icon(icon, null, tint = Color.White) } }) { Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, Color(0xFFF0F0F0), RoundedCornerShape(16.dp)).combinedClickable(onClick = { if (!habit.isDoneToday) onToggle(habit) }, onLongClick = { if (habit.isDoneToday) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onToggle(habit) } }).padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Column(modifier = Modifier.weight(1f)) { Text(habit.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color.Black); Spacer(modifier = Modifier.height(10.dp)); Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { repeat(5) { r -> Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { repeat(7) { c -> val isVisible = !((r == 0 && c < 2) || (r == 4 && c > 4)); if (isVisible) { val linearIdx = (r * 7 + c) - 2; val isFilled = if(linearIdx in displayPattern.indices) displayPattern[linearIdx] else false; Box(modifier = Modifier.width(12.dp).height(6.dp).clip(RoundedCornerShape(2.dp)).background(if (isFilled) color else Color(0xFFF0F0F0))) } else { Box(modifier = Modifier.width(12.dp).height(6.dp).background(Color.Transparent)) } } } } } }; Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) { Text("🔥 ${habit.streak}", fontSize = 12.sp, color = Color.Gray); Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(if (habit.isDoneToday) color else Color(0xFFF0F0F0)).clickable { onToggle(habit) }, contentAlignment = Alignment.Center) { if (habit.isDoneToday) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(18.dp)) } } } } } } }
 fun Modifier.alpha(value: Float) = this.then(Modifier.background(Color.Transparent.copy(alpha = 1f - value)))
