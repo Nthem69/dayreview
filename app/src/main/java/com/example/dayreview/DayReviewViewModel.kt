@@ -47,6 +47,7 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     
     fun setRevealedItem(id: String?) { _revealedItemId.value = id }
     fun setDate(date: LocalDate) { _selectedDate.value = date }
+    
     fun setYearMonth(ym: YearMonth) {
         val today = LocalDate.now()
         if (ym.year == today.year && ym.month == today.month) setDate(today) 

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.Flow
     @Query("SELECT * FROM habits") fun getAllHabits(): Flow<List<HabitEntity>>
     @Insert suspend fun insertHabit(habit: HabitEntity)
     @Update suspend fun updateHabit(habit: HabitEntity)
+    // CRITICAL: Delete by ID for reliability
     @Query("DELETE FROM habits WHERE id = :id") suspend fun deleteHabitById(id: Long)
 }
 
