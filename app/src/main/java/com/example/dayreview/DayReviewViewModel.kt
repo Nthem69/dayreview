@@ -50,9 +50,10 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     
     fun setYearMonth(ym: YearMonth) {
         val today = LocalDate.now()
-        if (ym.year == today.year && ym.month == today.month) setDate(today) 
-        else setDate(today.withYear(ym.year).withMonth(ym.monthValue).withDayOfMonth(1))
+        if (ym.year == today.year && ym.month == today.month) { setDate(today) } 
+        else { setDate(today.withYear(ym.year).withMonth(ym.monthValue).withDayOfMonth(1)) }
     }
+
     fun changeMonth(newMonthValue: Int) {
         val today = LocalDate.now()
         val currentSelected = _selectedDate.value
@@ -66,7 +67,7 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     fun deleteTask(task: TaskEntity) { viewModelScope.launch { taskDao.deleteTask(task) } }
 
     fun addHabit(title: String, color: Int) { 
-        // Start EMPTY (All false)
+        // FIX: Start 100% Empty
         val history = List(30) { false } 
         viewModelScope.launch { habitDao.insertHabit(HabitEntity(title = title, colorArgb = color, history = history)) } 
     }
@@ -88,6 +89,7 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     fun updateMoodConfig(config: MoodConfigEntity) { viewModelScope.launch { moodDao.updateConfig(config) } }
 }
 
+// FIX: Re-added the Factory Class!
 class DayReviewViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(DayReviewViewModel::class.java)) return DayReviewViewModel(application) as T
