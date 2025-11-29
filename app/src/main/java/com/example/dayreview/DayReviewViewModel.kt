@@ -24,7 +24,6 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     private val _selectedDate = MutableStateFlow(LocalDate.now())
     val selectedDate = _selectedDate.asStateFlow()
 
-    // SWIPE STATE
     private val _revealedItemId = MutableStateFlow<String?>(null)
     val revealedItemId = _revealedItemId.asStateFlow()
 
@@ -48,13 +47,11 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     
     fun setRevealedItem(id: String?) { _revealedItemId.value = id }
     fun setDate(date: LocalDate) { _selectedDate.value = date }
-    
     fun setYearMonth(ym: YearMonth) {
         val today = LocalDate.now()
         if (ym.year == today.year && ym.month == today.month) setDate(today) 
         else setDate(today.withYear(ym.year).withMonth(ym.monthValue).withDayOfMonth(1))
     }
-
     fun changeMonth(newMonthValue: Int) {
         val today = LocalDate.now()
         val currentSelected = _selectedDate.value
@@ -68,11 +65,9 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     fun deleteTask(task: TaskEntity) { viewModelScope.launch { taskDao.deleteTask(task) } }
 
     fun addHabit(title: String, color: Int) { 
-        // Start EMPTY
         val history = List(30) { false } 
         viewModelScope.launch { habitDao.insertHabit(HabitEntity(title = title, colorArgb = color, history = history)) } 
     }
-    
     fun toggleHabit(habitId: Long) {
         viewModelScope.launch {
             val habit = habits.value.find { it.id == habitId } ?: return@launch
