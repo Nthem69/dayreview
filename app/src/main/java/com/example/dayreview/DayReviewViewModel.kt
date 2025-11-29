@@ -24,8 +24,6 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     private val _selectedDate = MutableStateFlow(LocalDate.now())
     val selectedDate = _selectedDate.asStateFlow()
 
-    // NEW: Track which item (Task/Habit ID) has its swipe menu open. Null = None.
-    // Format: "task_123" or "habit_456"
     private val _revealedItemId = MutableStateFlow<String?>(null)
     val revealedItemId = _revealedItemId.asStateFlow()
 
@@ -47,9 +45,7 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
     
-    // Actions
     fun setRevealedItem(id: String?) { _revealedItemId.value = id }
-
     fun setDate(date: LocalDate) { _selectedDate.value = date }
     
     fun setYearMonth(ym: YearMonth) {
@@ -71,8 +67,8 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     fun deleteTask(task: TaskEntity) { viewModelScope.launch { taskDao.deleteTask(task) } }
 
     fun addHabit(title: String, color: Int) { 
-        // Generate truly random history for each new habit to avoid visual duplicates
-        val history = List(30) { Random.nextBoolean() } 
+        // FIX: Start with empty history (all false)
+        val history = List(30) { false } 
         viewModelScope.launch { habitDao.insertHabit(HabitEntity(title = title, colorArgb = color, history = history)) } 
     }
     
