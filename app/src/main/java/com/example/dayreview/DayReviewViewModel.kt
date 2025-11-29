@@ -81,10 +81,15 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
             habitDao.updateHabit(habit.copy(isDoneToday = newStatus, history = newHistory, streak = newStreak))
         }
     }
+    
     fun updateHabit(habit: HabitEntity) { viewModelScope.launch { habitDao.updateHabit(habit) } }
     
-    // FIX: Use delete by ID to ensure it works even if object state changed
-    fun deleteHabit(habit: HabitEntity) { viewModelScope.launch { habitDao.deleteHabitById(habit.id) } }
+    // FIX: Call the robust Delete-by-ID function
+    fun deleteHabit(habit: HabitEntity) { 
+        viewModelScope.launch { 
+            habitDao.deleteHabitById(habit.id) 
+        } 
+    }
     
     fun setRating(moodId: Int) { viewModelScope.launch { ratingDao.setRating(RatingEntity(date = LocalDate.now().toString(), moodId = moodId)) } }
     fun updateMoodConfig(config: MoodConfigEntity) { viewModelScope.launch { moodDao.updateConfig(config) } }

@@ -21,12 +21,14 @@ interface TaskDao {
 interface HabitDao {
     @Query("SELECT * FROM habits")
     fun getAllHabits(): Flow<List<HabitEntity>>
+    
     @Insert
     suspend fun insertHabit(habit: HabitEntity)
+    
     @Update
     suspend fun updateHabit(habit: HabitEntity)
     
-    // FIX: Delete by ID (Robust deletion)
+    // FIX: Specific query to delete by ID. This ignores state mismatches.
     @Query("DELETE FROM habits WHERE id = :id")
     suspend fun deleteHabitById(id: Long)
 }
