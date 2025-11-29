@@ -24,6 +24,10 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     private val _selectedDate = MutableStateFlow(LocalDate.now())
     val selectedDate = _selectedDate.asStateFlow()
 
+    // FIX: Added missing Swipe State
+    private val _revealedItemId = MutableStateFlow<String?>(null)
+    val revealedItemId = _revealedItemId.asStateFlow()
+
     val tasks = _selectedDate.flatMapLatest { date -> taskDao.getTasksForDate(date.toString()) }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyList())
     val ghostTasks = taskDao.getUnfinishedPastTasks(LocalDate.now().toString()).stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyList())
     val habits = habitDao.getAllHabits().stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyList())
@@ -41,13 +45,16 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
             }
         }
     }
+    
+    // FIX: Function to update Swipe State
+    fun setRevealedItem(id: String?) { _revealedItemId.value = id }
 
     fun setDate(date: LocalDate) { _selectedDate.value = date }
     
     fun setYearMonth(ym: YearMonth) {
         val today = LocalDate.now()
-        if (ym.year == today.year && ym.month == today.month) setDate(today) 
-        else setDate(today.withYear(ym.year).withMonth(ym.monthValue).withDayOfMonth(1))
+        if (ym.year == today.year && ym.month == today.month) { setDate(today) } 
+        else { setDate(today.withYear(ym.year).withMonth(ym.monthValue).withDayOfMonth(1)) }
     }
 
     fun changeMonth(newMonthValue: Int) {
@@ -79,10 +86,7 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
     fun updateHabit(habit: HabitEntity) { viewModelScope.launch { habitDao.updateHabit(habit) } }
-    
-    // FIX: Robust Delete
     fun deleteHabit(habit: HabitEntity) { viewModelScope.launch { habitDao.deleteHabitById(habit.id) } }
-    
     fun setRating(moodId: Int) { viewModelScope.launch { ratingDao.setRating(RatingEntity(date = LocalDate.now().toString(), moodId = moodId)) } }
     fun updateMoodConfig(config: MoodConfigEntity) { viewModelScope.launch { moodDao.updateConfig(config) } }
 }
