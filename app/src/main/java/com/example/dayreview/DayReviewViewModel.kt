@@ -46,15 +46,13 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     }
     
     fun setRevealedItem(id: String?) { _revealedItemId.value = id }
-
     fun setDate(date: LocalDate) { _selectedDate.value = date }
     
     fun setYearMonth(ym: YearMonth) {
         val today = LocalDate.now()
-        if (ym.year == today.year && ym.month == today.month) { setDate(today) } 
-        else { setDate(today.withYear(ym.year).withMonth(ym.monthValue).withDayOfMonth(1)) }
+        if (ym.year == today.year && ym.month == today.month) setDate(today) 
+        else setDate(today.withYear(ym.year).withMonth(ym.monthValue).withDayOfMonth(1))
     }
-
     fun changeMonth(newMonthValue: Int) {
         val today = LocalDate.now()
         val currentSelected = _selectedDate.value
@@ -68,6 +66,7 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     fun deleteTask(task: TaskEntity) { viewModelScope.launch { taskDao.deleteTask(task) } }
 
     fun addHabit(title: String, color: Int) { 
+        // Start EMPTY (All false)
         val history = List(30) { false } 
         viewModelScope.launch { habitDao.insertHabit(HabitEntity(title = title, colorArgb = color, history = history)) } 
     }

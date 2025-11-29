@@ -1,5 +1,4 @@
 package com.example.dayreview.data
-
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -9,7 +8,7 @@ data class TaskEntity(
     val title: String,
     val isDone: Boolean,
     val date: String,
-    val time: String? = null // New Field: "14:30" or null
+    val time: String? = null
 )
 
 @Entity(tableName = "habits")
@@ -23,10 +22,7 @@ data class HabitEntity(
 )
 
 @Entity(tableName = "ratings")
-data class RatingEntity(
-    @PrimaryKey val date: String, 
-    val moodId: Int
-)
+data class RatingEntity(@PrimaryKey val date: String, val moodId: Int)
 
 @Entity(tableName = "mood_config")
 data class MoodConfigEntity(
