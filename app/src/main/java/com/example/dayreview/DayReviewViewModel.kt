@@ -24,7 +24,6 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
     private val _selectedDate = MutableStateFlow(LocalDate.now())
     val selectedDate = _selectedDate.asStateFlow()
 
-    // FIX: Added missing Swipe State
     private val _revealedItemId = MutableStateFlow<String?>(null)
     val revealedItemId = _revealedItemId.asStateFlow()
 
@@ -46,7 +45,6 @@ class DayReviewViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
     
-    // FIX: Function to update Swipe State
     fun setRevealedItem(id: String?) { _revealedItemId.value = id }
 
     fun setDate(date: LocalDate) { _selectedDate.value = date }
